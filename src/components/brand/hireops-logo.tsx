@@ -1,6 +1,5 @@
 "use client";
 
-import Image from "next/image";
 import { cn } from "@/lib/utils";
 import { BRAND } from "@/lib/brand";
 
@@ -12,6 +11,7 @@ type HireOpsLogoProps = {
   variant?: "mark" | "full";
 };
 
+/** Plain img for faster first paint on Amplify (no image optimizer round-trip). */
 export function HireOpsLogo({
   size = 32,
   className,
@@ -20,12 +20,15 @@ export function HireOpsLogo({
 }: HireOpsLogoProps) {
   const src = variant === "full" ? BRAND.logoSrc : BRAND.logoMarkSrc;
   return (
-    <Image
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
       src={src}
       alt={BRAND.name}
       width={size}
       height={size}
-      priority={priority}
+      decoding="async"
+      loading={priority ? "eager" : "lazy"}
+      fetchPriority={priority ? "high" : "auto"}
       className={cn("object-contain select-none", className)}
     />
   );
@@ -41,7 +44,11 @@ export function HireOpsWordmark({
   size?: "sm" | "md" | "lg";
 }) {
   const title =
-    size === "lg" ? "text-2xl font-semibold tracking-tight" : size === "sm" ? "text-[13px] font-semibold tracking-tight" : "text-sm font-semibold tracking-tight";
+    size === "lg"
+      ? "text-2xl font-semibold tracking-tight"
+      : size === "sm"
+        ? "text-[13px] font-semibold tracking-tight"
+        : "text-sm font-semibold tracking-tight";
   const tag =
     size === "lg" ? "text-sm text-muted-foreground mt-1" : "text-[10px] text-muted-foreground mt-0.5";
 

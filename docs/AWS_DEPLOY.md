@@ -231,6 +231,8 @@ If you abandon the project: Amplify → app → **Delete app** so hosting charge
 | API / AI 500s | Confirm `SUPABASE_SERVICE_ROLE_KEY`, `DATABASE_URL`, `OPENROUTER_API_KEY` are set and redeployed |
 | Env vars “missing” at runtime | Confirm `amplify.yml` writes them to `.env.production` and you redeployed after adding vars |
 | Next.js 16 build warnings | Amplify historically documented Next 12–15; if build fails on version, check Amplify release notes or pin Node 20 and retry |
+| App feels very slow on first open | Amplify Free Tier **cold starts** — first request after idle can take several seconds. Keep the tab open while testing; warm by hitting `/login` once. Ensure `NEXT_PUBLIC_APP_URL` is set. |
+| Stuck on “Starting HireOps…” | Redeploy latest `main` (lighter loaders + `/` → `/login` redirect). Hard-refresh the browser. |
 
 ---
 

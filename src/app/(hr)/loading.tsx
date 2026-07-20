@@ -1,7 +1,5 @@
-"use client";
-
-import { BrandLoadingScreen } from "@/components/brand/brand-loading";
+import { PageSkeleton } from "@/components/shared/enterprise-ui";
 
 export default function HrLoading() {
-  return <BrandLoadingScreen />;
+  return <PageSkeleton rows={5} />;
 }

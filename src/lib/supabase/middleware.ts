@@ -51,7 +51,14 @@ export async function updateSession(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
   const isPublic = PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(p + "/"));
 
-  if (!user && !isPublic && pathname !== "/") {
+  // Fast path: anonymous root → login (also covered by next.config redirects)
+  if (!user && (pathname === "/" || pathname === "")) {
+    const redirectUrl = request.nextUrl.clone();
+    redirectUrl.pathname = "/login";
+    return NextResponse.redirect(redirectUrl);
+  }
+
+  if (!user && !isPublic) {
     const redirectUrl = request.nextUrl.clone();
     redirectUrl.pathname = "/login";
     redirectUrl.searchParams.set("redirectTo", pathname);
@@ -60,37 +67,51 @@ export async function updateSession(request: NextRequest) {
 
   // Legacy flat routes → /hr/*
   const legacyTarget = legacyRedirects[pathname];
-  if (user && legacyTarget && pathname !== legacyTarget && !pathname.startsWith("/hr/") && !pathname.startsWith("/admin") && !pathname.startsWith("/candidate")) {
-    // Only redirect exact legacy roots that aren't already under portals
-    if (["/dashboard", "/candidates", "/jobs", "/ai-matching", "/cv-parsing", "/assessments", "/ai-interview", "/reports", "/analytics", "/settings", "/future-vision"].includes(pathname)) {
+  if (
+    user &&
+    legacyTarget &&
+    pathname !== legacyTarget &&
+    !pathname.startsWith("/hr/") &&
+    !pathname.startsWith("/admin") &&
+    !pathname.startsWith("/candidate")
+  ) {
+    if (
+      [
+        "/dashboard",
+        "/candidates",
+        "/jobs",
+        "/ai-matching",
+        "/cv-parsing",
+        "/assessments",
+        "/ai-interview",
+        "/reports",
+        "/analytics",
+        "/settings",
+        "/future-vision",
+      ].includes(pathname)
+    ) {
       const redirectUrl = request.nextUrl.clone();
       redirectUrl.pathname = legacyTarget;
       return NextResponse.redirect(redirectUrl);
     }
   }
 
-  // Candidate detail legacy
   if (user && pathname.startsWith("/candidates/")) {
     const redirectUrl = request.nextUrl.clone();
     redirectUrl.pathname = pathname.replace("/candidates/", "/hr/candidates/");
     return NextResponse.redirect(redirectUrl);
   }
 
-  if (user && (pathname === "/login" || pathname === "/")) {
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("portal_role, roles ( name )")
-      .eq("id", user.id)
-      .maybeSingle();
-    const role = Array.isArray(profile?.roles) ? profile?.roles[0] : profile?.roles;
-    const portal = mapPortal(role?.name, profile?.portal_role as string | null);
-    const redirectUrl = request.nextUrl.clone();
-    redirectUrl.pathname = portalHome[portal];
-    redirectUrl.search = "";
-    return NextResponse.redirect(redirectUrl);
-  }
+  // Single profile fetch for login redirect + portal guards
+  const needsPortal =
+    !!user &&
+    (pathname === "/login" ||
+      pathname === "/" ||
+      pathname.startsWith("/admin") ||
+      pathname.startsWith("/hr") ||
+      pathname.startsWith("/candidate"));
 
-  if (user) {
+  if (needsPortal && user) {
     const { data: profile } = await supabase
       .from("profiles")
       .select("portal_role, roles ( name )")
@@ -98,6 +119,13 @@ export async function updateSession(request: NextRequest) {
       .maybeSingle();
     const role = Array.isArray(profile?.roles) ? profile?.roles[0] : profile?.roles;
     const portal = mapPortal(role?.name, profile?.portal_role as string | null);
+
+    if (pathname === "/login" || pathname === "/") {
+      const redirectUrl = request.nextUrl.clone();
+      redirectUrl.pathname = portalHome[portal];
+      redirectUrl.search = "";
+      return NextResponse.redirect(redirectUrl);
+    }
 
     const onAdmin = pathname.startsWith("/admin");
     const onHr = pathname.startsWith("/hr");
