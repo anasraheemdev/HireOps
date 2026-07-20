@@ -9,6 +9,28 @@ GitHub main → auto-deploys → Amplify
 
 ---
 
+## Live production URL
+
+**HireOps (Amplify):** [https://main.d2gei9r9nlt6ui.amplifyapp.com/](https://main.d2gei9r9nlt6ui.amplifyapp.com/)
+
+Use this value for:
+
+```text
+NEXT_PUBLIC_APP_URL=https://main.d2gei9r9nlt6ui.amplifyapp.com
+```
+
+And in Supabase Auth → URL configuration:
+
+```text
+Site URL: https://main.d2gei9r9nlt6ui.amplifyapp.com
+Redirect: https://main.d2gei9r9nlt6ui.amplifyapp.com/auth/callback
+Redirect: https://main.d2gei9r9nlt6ui.amplifyapp.com/**
+```
+
+Partner UAT guide (demo logins + test plan): [PARTNER_TEST_GUIDE.md](./PARTNER_TEST_GUIDE.md)
+
+---
+
 ## 0. What “free” means
 
 - New AWS accounts get a **12-month Free Tier** (limits apply).

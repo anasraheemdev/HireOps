@@ -35,6 +35,12 @@ Beginner-friendly guide: **[docs/AWS_DEPLOY.md](./docs/AWS_DEPLOY.md)** (AWS Amp
 
 After the first Amplify URL exists, set `NEXT_PUBLIC_APP_URL` and update Supabase Auth redirect URLs — details are in that guide (section 5).
 
+**Live demo:** [https://main.d2gei9r9nlt6ui.amplifyapp.com/](https://main.d2gei9r9nlt6ui.amplifyapp.com/)
+
+**Partner testing guide (credentials + UAT checklist):** **[docs/PARTNER_TEST_GUIDE.md](./docs/PARTNER_TEST_GUIDE.md)**
+
+**Built by:** [Obrix Labs](https://www.obrixlabs.com) · [info@obrixlabs.com](mailto:info@obrixlabs.com)
+
 ## Key scripts
 
 ```bash
