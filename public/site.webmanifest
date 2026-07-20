@@ -1,0 +1,30 @@
+{
+  "name": "HireOps",
+  "short_name": "HireOps",
+  "description": "HireOps is an enterprise AI Recruitment Operations Platform that automates resume screening, candidate matching, AI interviews, assessments, recruitment analytics, and hiring workflows.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0a0e16",
+  "theme_color": "#0a0e16",
+  "orientation": "any",
+  "icons": [
+    {
+      "src": "/android-chrome-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/android-chrome-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/maskable-icon-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}

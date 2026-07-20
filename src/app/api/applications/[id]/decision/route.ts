@@ -1,0 +1,58 @@
+import { NextResponse } from "next/server";
+import { z } from "zod";
+import { requirePermission, jsonError, ApiError } from "@/lib/api/helpers";
+import { setApplicationDecision } from "@/lib/services/candidates.service";
+
+type Params = { params: Promise<{ id: string }> };
+
+export async function POST(request: Request, { params }: Params) {
+  try {
+    const { supabase, user } = await requirePermission("applications.write");
+    const { id } = await params;
+    const raw = await request.json();
+
+    // /api/applications/match/decision — create application if needed for AI Matching talent-pool shortlist
+    if (id === "match") {
+      const parsed = z
+        .object({
+          decision: z.enum(["shortlist", "reject"]),
+          candidateId: z.string().uuid(),
+          jobId: z.string().uuid(),
+        })
+        .safeParse(raw);
+      if (!parsed.success) throw new ApiError(400, "candidateId, jobId, and decision are required");
+
+      let { data: app } = await supabase
+        .from("applications")
+        .select("id")
+        .eq("candidate_id", parsed.data.candidateId)
+        .eq("job_id", parsed.data.jobId)
+        .maybeSingle();
+
+      if (!app) {
+        const { data: created, error } = await supabase
+          .from("applications")
+          .insert({
+            candidate_id: parsed.data.candidateId,
+            job_id: parsed.data.jobId,
+            stage: "applied",
+            created_by: user.id,
+          })
+          .select("id")
+          .single();
+        if (error) throw error;
+        app = created;
+      }
+
+      const result = await setApplicationDecision(supabase, app.id, parsed.data.decision);
+      return NextResponse.json({ data: result });
+    }
+
+    const parsed = z.object({ decision: z.enum(["shortlist", "reject"]) }).safeParse(raw);
+    if (!parsed.success) throw new ApiError(400, "decision must be shortlist or reject");
+    const result = await setApplicationDecision(supabase, id, parsed.data.decision);
+    return NextResponse.json({ data: result });
+  } catch (err) {
+    return jsonError(err);
+  }
+}
