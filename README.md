@@ -53,6 +53,10 @@ node scripts/generate-hireops-icons.mjs  # regenerate favicons / PWA icons from 
 - **AI:** OpenRouter (configurable via `AI_PROVIDER`) for parsing, matching, interviews
 - **Design system:** `design-system/hireops/MASTER.md`
 
-## Environment
+## License
 
-See `.env.local` (gitignored): Supabase URL/keys, `DATABASE_URL` / `DIRECT_URL`, `OPENROUTER_API_KEY`, optional `NEXT_PUBLIC_APP_URL`.
+**Proprietary — Obrix Labs.** © 2026 Obrix Labs. All rights reserved.
+
+HireOps is the property of Obrix Labs. It was built for specific organizations and **may not be used, copied, modified, distributed, or commercialized without prior written permission** from Obrix Labs.
+
+See [LICENSE](./LICENSE) for the full terms.

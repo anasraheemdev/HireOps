@@ -2,6 +2,9 @@
   "name": "hireops",
   "version": "0.1.0",
   "private": true,
+  "license": "UNLICENSED",
+  "author": "Obrix Labs",
+  "description": "HireOps — AI Recruitment Operations Platform. Proprietary software owned by Obrix Labs.",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
