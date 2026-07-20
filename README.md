@@ -29,6 +29,12 @@ npm run dev
 
 Open [http://localhost:3000](http://localhost:3000). Legacy flat URLs (`/candidates`, `/jobs`, …) redirect to `/hr/*`.
 
+## Deploy to AWS (Free Tier)
+
+Beginner-friendly guide: **[docs/AWS_DEPLOY.md](./docs/AWS_DEPLOY.md)** (AWS Amplify Hosting + GitHub).
+
+After the first Amplify URL exists, set `NEXT_PUBLIC_APP_URL` and update Supabase Auth redirect URLs — details are in that guide (section 5).
+
 ## Key scripts
 
 ```bash

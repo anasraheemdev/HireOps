@@ -5,6 +5,9 @@
   "license": "UNLICENSED",
   "author": "Obrix Labs",
   "description": "HireOps — AI Recruitment Operations Platform. Proprietary software owned by Obrix Labs.",
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "dev": "next dev",
     "build": "next build",

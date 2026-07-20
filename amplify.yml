@@ -1,0 +1,25 @@
+# AWS Amplify Hosting — HireOps (Next.js SSR / WEB_COMPUTE)
+# Docs: https://docs.aws.amazon.com/amplify/latest/userguide/deploy-nextjs-app.html
+version: 1
+frontend:
+  phases:
+    preBuild:
+      commands:
+        - nvm install 20
+        - nvm use 20
+        - node -v
+        - npm ci
+    build:
+      commands:
+        # Expose Amplify Console env vars to Next.js (build + SSR runtime)
+        # See: https://docs.aws.amazon.com/amplify/latest/userguide/ssr-environment-variables.html
+        - env | grep -E '^(NEXT_PUBLIC_|SUPABASE_|DATABASE_URL|DIRECT_URL|OPENROUTER_|AI_)' >> .env.production || true
+        - npm run build
+  artifacts:
+    baseDirectory: .next
+    files:
+      - "**/*"
+  cache:
+    paths:
+      - node_modules/**/*
+      - .next/cache/**/*
