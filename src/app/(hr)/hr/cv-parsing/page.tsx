@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import {
   UploadCloud,
@@ -39,7 +39,7 @@ const parsingStages = [
   "Parsing work experience",
   "Detecting skills & competencies",
   "Cross-referencing certifications",
-  "Calculating confidence score",
+  "Checking extracted fields",
 ];
 
 function formatLanguage(name: string, level: string) {
@@ -185,10 +185,7 @@ export default function CvParsingPage() {
     [parseMutation]
   );
 
-  useEffect(() => {
-    if (step !== "parsing") return;
-    if (stageIndex < 0) setStageIndex(0);
-  }, [step, stageIndex]);
+
 
   const handleSubmit = async () => {
     if (!name.trim() || !email.trim()) {
@@ -281,7 +278,7 @@ export default function CvParsingPage() {
             {[
               { icon: ScanLine, label: "OCR + NLP Extraction", desc: "Reads scanned and native PDFs alike" },
               { icon: Sparkles, label: "AI Field Mapping", desc: "Auto-fills structured candidate profiles" },
-              { icon: CheckCircle2, label: "Confidence Scoring", desc: "Flags low-confidence fields for review" },
+              { icon: CheckCircle2, label: "Completeness Check", desc: "Flags missing fields for human review" },
             ].map((f) => (
               <div key={f.label} className="glass-card p-4">
                 <f.icon className="h-4 w-4 text-blue-400 mb-2" />
@@ -360,7 +357,7 @@ export default function CvParsingPage() {
               <p className="mt-3 font-semibold">{name}</p>
               <p className="text-xs text-muted-foreground">{title}</p>
               <div className="flex justify-center mt-4">
-                <ScoreRing score={confidence} size={100} sublabel="Confidence" />
+                <ScoreRing score={confidence} size={100} sublabel="Completeness" />
               </div>
               <Badge variant="outline" className="mt-3 bg-emerald-500/10 text-emerald-300 border-emerald-500/20 text-[10px]">
                 <CheckCircle2 className="h-3 w-3 mr-1" /> Parsed from {fileName}

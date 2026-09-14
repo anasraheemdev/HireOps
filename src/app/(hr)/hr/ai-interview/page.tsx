@@ -52,7 +52,7 @@ function InterviewsWorkspace() {
     mutationFn: () =>
       apiFetch<Session>("/api/interviews", {
         method: "POST",
-        body: JSON.stringify({ candidateId, mode }),
+        body: JSON.stringify({ candidateId, mode, applicationId: candidates.find(c=>c.id===candidateId)?.applicationId, jobId: candidates.find(c=>c.id===candidateId)?.jobId || undefined }),
       }),
     onSuccess: (session) => {
       qc.invalidateQueries({ queryKey: ["interviews"] });

@@ -187,9 +187,9 @@ export default function LoginPage() {
             className="grid grid-cols-3 gap-4 mt-10 max-w-lg"
           >
             {[
-              { icon: Users, label: "4,218", sub: "Active Candidates" },
-              { icon: Bot, label: "27", sub: "AI Interviews Today" },
-              { icon: BarChart3, label: "82.4%", sub: "Avg Match Score" },
+              { icon: Users, label: "3 portals", sub: "HR · Candidate · Admin" },
+              { icon: Bot, label: "AI assisted", sub: "Structured Interviews" },
+              { icon: BarChart3, label: "0–100%", sub: "Explainable Job Fit" },
             ].map((s, i) => (
               <div key={i} className="glass-card p-4">
                 <s.icon className="h-4 w-4 text-blue-300 mb-2" />
@@ -332,6 +332,7 @@ export default function LoginPage() {
                     </button>
                   </form>
 
+                  {process.env.NEXT_PUBLIC_ENABLE_AZURE_SSO === "true" && <>
                   <div className="flex items-center gap-3 my-6">
                     <div className="h-px flex-1 bg-white/10" />
                     <span className="text-xs text-muted-foreground">OR</span>
@@ -350,8 +351,9 @@ export default function LoginPage() {
                     </Button>
                   </div>
 
+                  </>}
                   <p className="text-center text-[11px] text-muted-foreground mt-6">
-                    Protected by government-grade encryption &amp; MFA. Unauthorized access is prohibited and monitored.
+                    Sign in securely with your organization account. Access is limited by your assigned role.
                   </p>
                 </>
               )}

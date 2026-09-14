@@ -10,6 +10,8 @@ import {
   type ReactNode,
 } from "react";
 
+import { useBrowserPreference } from "@/lib/browser-preference";
+
 type WorkspaceUiContextValue = {
   sidebarCollapsed: boolean;
   toggleSidebar: () => void;
@@ -26,40 +28,15 @@ const SIDEBAR_KEY = "hireops-sidebar-collapsed";
 const AI_KEY = "hireops-ai-dock-open";
 
 export function WorkspaceUiProvider({ children }: { children: ReactNode }) {
-  const [sidebarCollapsed, setSidebarCollapsedState] = useState(false);
-  const [aiDockOpen, setAiDockOpenState] = useState(false);
+  const [sidebarValue, setSidebarValue] = useBrowserPreference(SIDEBAR_KEY, '0');
+  const [aiValue, setAiValue] = useBrowserPreference(AI_KEY, '0');
+  const sidebarCollapsed = sidebarValue === '1';
+  const aiDockOpen = aiValue === '1';
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
-
-  useEffect(() => {
-    setSidebarCollapsedState(localStorage.getItem(SIDEBAR_KEY) === "1");
-    setAiDockOpenState(localStorage.getItem(AI_KEY) === "1");
-  }, []);
-
-  const setSidebarCollapsed = useCallback((v: boolean) => {
-    setSidebarCollapsedState(v);
-    localStorage.setItem(SIDEBAR_KEY, v ? "1" : "0");
-  }, []);
-
-  const toggleSidebar = useCallback(() => {
-    setSidebarCollapsedState((prev) => {
-      const next = !prev;
-      localStorage.setItem(SIDEBAR_KEY, next ? "1" : "0");
-      return next;
-    });
-  }, []);
-
-  const setAiDockOpen = useCallback((v: boolean) => {
-    setAiDockOpenState(v);
-    localStorage.setItem(AI_KEY, v ? "1" : "0");
-  }, []);
-
-  const toggleAiDock = useCallback(() => {
-    setAiDockOpenState((prev) => {
-      const next = !prev;
-      localStorage.setItem(AI_KEY, next ? "1" : "0");
-      return next;
-    });
-  }, []);
+  const setSidebarCollapsed = useCallback((value:boolean)=>setSidebarValue(value?'1':'0'),[setSidebarValue]);
+  const toggleSidebar = useCallback(()=>setSidebarCollapsed(!sidebarCollapsed),[sidebarCollapsed,setSidebarCollapsed]);
+  const setAiDockOpen = useCallback((value:boolean)=>setAiValue(value?'1':'0'),[setAiValue]);
+  const toggleAiDock = useCallback(()=>setAiDockOpen(!aiDockOpen),[aiDockOpen,setAiDockOpen]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {

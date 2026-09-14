@@ -4,10 +4,11 @@ import {
   createContext,
   useContext,
   useEffect,
-  useState,
   useCallback,
   useMemo,
 } from "react";
+
+import { useBrowserPreference } from "@/lib/browser-preference";
 
 export type Lang = "en" | "ar";
 
@@ -241,23 +242,6 @@ type LangContextValue = {
 const LangContext = createContext<LangContextValue | null>(null);
 const STORAGE_KEY = "hireops-lang";
 
-function readStoredLang(): Lang {
-  if (typeof window === "undefined") return "en";
-  const stored = localStorage.getItem(STORAGE_KEY);
-  if (stored === "ar" || stored === "en") return stored;
-  const cookie = document.cookie
-    .split("; ")
-    .find((c) => c.startsWith(`${STORAGE_KEY}=`))
-    ?.split("=")[1];
-  if (cookie === "ar" || cookie === "en") return cookie;
-  return "en";
-}
-
-function persistLang(l: Lang) {
-  localStorage.setItem(STORAGE_KEY, l);
-  document.cookie = `${STORAGE_KEY}=${l};path=/;max-age=31536000;SameSite=Lax`;
-}
-
 function applyDocumentLang(l: Lang) {
   const dir = l === "ar" ? "rtl" : "ltr";
   document.documentElement.lang = l;
@@ -267,35 +251,14 @@ function applyDocumentLang(l: Lang) {
 }
 
 export function LangProvider({ children }: { children: React.ReactNode }) {
-  const [lang, setLangState] = useState<Lang>("en");
-  const [ready, setReady] = useState(false);
-
-  useEffect(() => {
-    const initial = readStoredLang();
-    setLangState(initial);
-    applyDocumentLang(initial);
-    setReady(true);
-  }, []);
-
-  useEffect(() => {
-    if (!ready) return;
-    applyDocumentLang(lang);
-  }, [lang, ready]);
-
-  const setLang = useCallback((l: Lang) => {
-    setLangState(l);
-    persistLang(l);
-    applyDocumentLang(l);
-  }, []);
-
-  const toggleLang = useCallback(() => {
-    setLangState((prev) => {
-      const next: Lang = prev === "en" ? "ar" : "en";
-      persistLang(next);
-      applyDocumentLang(next);
-      return next;
-    });
-  }, []);
+  const [storedLang,setStoredLang] = useBrowserPreference(STORAGE_KEY,'en');
+  const lang:Lang = storedLang==='ar'?'ar':'en';
+  useEffect(()=>{applyDocumentLang(lang);},[lang]);
+  const setLang=useCallback((value:Lang)=>{
+    setStoredLang(value);
+    document.cookie = STORAGE_KEY+'='+value+';path=/;max-age=31536000;SameSite=Lax';
+  },[setStoredLang]);
+  const toggleLang=useCallback(()=>setLang(lang==='en'?'ar':'en'),[lang,setLang]);
 
   const t = useCallback((key: DictKey) => dictionary[lang][key] ?? dictionary.en[key] ?? key, [lang]);
 

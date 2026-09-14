@@ -1,4 +1,6 @@
-import { requirePermission, jsonError, ApiError } from "@/lib/api/helpers";
+import { jsonError, ApiError } from "@/lib/api/helpers";
+import { interviewAccess } from '@/lib/services/interview-access';
+import { z } from 'zod';
 import { streamInterviewReply } from "@/lib/services/interview-stream.service";
 
 type Params = { params: Promise<{ id: string }> };
@@ -6,8 +8,8 @@ type Params = { params: Promise<{ id: string }> };
 export async function POST(request: Request, { params }: Params) {
   try {
     const { id } = await params;
-    const { supabase } = await requirePermission("interviews.conduct", "interviews.write");
-    const body = (await request.json()) as { content?: string };
+    const { supabase } = await interviewAccess(id, true);
+    const body = z.object({content:z.string().trim().min(1).max(12000)}).parse(await request.json());
     if (!body.content?.trim()) throw new ApiError(400, "Message content required");
 
     const encoder = new TextEncoder();

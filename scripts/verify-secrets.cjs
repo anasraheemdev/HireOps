@@ -1,0 +1,16 @@
+const assert=require('node:assert/strict');
+const vm=require('node:vm');
+const fs=require('node:fs');
+const ts=require('typescript');
+const crypto=require('node:crypto');
+const context={exports:{},Buffer,process:{env:{APP_ENCRYPTION_KEY:crypto.randomBytes(32).toString('hex')}},require:name=>name==='server-only'?{}:require(name)};
+vm.runInNewContext(ts.transpileModule(fs.readFileSync('src/lib/ai/secrets.ts','utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2020}}).outputText,context);
+const {encryptSecret,decryptSecret}=context.exports;
+const first=encryptSecret('verification-value');
+assert.notEqual(first,encryptSecret('verification-value'),'Encryption must use a fresh nonce');
+assert.equal(decryptSecret(first),'verification-value');
+assert.ok(!first.includes('verification-value'));
+const parts=first.split(':');parts[3]=Buffer.from('tampered').toString('base64');
+assert.throws(()=>decryptSecret(parts.join(':')),'Modified ciphertext must fail authentication');
+assert.throws(()=>decryptSecret(Buffer.from('plain').toString('base64')),'Legacy encoding must not be treated as encryption');
+console.log('PASS: authenticated encryption, nonce uniqueness, tamper detection and legacy rejection');

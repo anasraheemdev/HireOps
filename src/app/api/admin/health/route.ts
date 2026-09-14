@@ -8,11 +8,11 @@ export async function GET() {
     const [{ count: candidates }, { count: jobs }, { count: withEmbed }, { count: users }] = await Promise.all([
       supabase.from("candidates").select("*", { count: "exact", head: true }),
       supabase.from("jobs").select("*", { count: "exact", head: true }),
-      (supabase as any).from("candidates").select("*", { count: "exact", head: true }).not("embedding", "is", null),
+      supabase.from("candidates").select("*", { count: "exact", head: true }).not("embedding", "is", null),
       supabase.from("profiles").select("*", { count: "exact", head: true }),
     ]);
 
-    const { data: byRole } = await (supabase as any).from("profiles").select("portal_role");
+    const { data: byRole } = await supabase.from("profiles").select("portal_role");
     const usersByPortalRole = { super_admin: 0, hr: 0, candidate: 0 } as Record<string, number>;
     for (const row of byRole ?? []) {
       const role = row.portal_role as string | null;
@@ -23,7 +23,7 @@ export async function GET() {
     try {
       const since = new Date();
       since.setHours(0, 0, 0, 0);
-      const { count } = await (supabase as any)
+      const { count } = await supabase
         .from("ai_usage_logs")
         .select("*", { count: "exact", head: true })
         .gte("created_at", since.toISOString());

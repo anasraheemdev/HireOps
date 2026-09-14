@@ -1,0 +1,680 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>HireOps User Usage Guide | Obrix Labs</title>
+  <meta name="description" content="Official HireOps user usage guide — test Super Admin, HR, and Candidate portals. Built by Obrix Labs." />
+  <meta name="author" content="Obrix Labs" />
+  <link rel="icon" href="/favicon.ico" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&family=Source+Sans+3:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --ink: #0a0e16;
+      --ink-soft: #151b28;
+      --slate: #3d4a5c;
+      --muted: #6b7a8f;
+      --line: #d8dee8;
+      --paper: #f7f9fc;
+      --white: #ffffff;
+      --accent: #007bff;
+      --accent-deep: #0056b3;
+      --accent-soft: #e8f2ff;
+      --ok: #0d7a4f;
+      --ok-soft: #e6f6ef;
+      --warn: #9a6700;
+      --warn-soft: #fff6e0;
+      --radius: 14px;
+      --shadow: 0 12px 40px rgba(10, 14, 22, 0.08);
+      --font-display: "Outfit", system-ui, sans-serif;
+      --font-body: "Source Sans 3", system-ui, sans-serif;
+    }
+
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      color: var(--ink);
+      background:
+        radial-gradient(1200px 500px at 10% -10%, #d6e8ff 0%, transparent 55%),
+        radial-gradient(900px 400px at 100% 0%, #e8eef8 0%, transparent 50%),
+        var(--paper);
+      font-family: var(--font-body);
+      font-size: 16px;
+      line-height: 1.55;
+    }
+
+    a { color: var(--accent-deep); text-decoration-thickness: 1px; text-underline-offset: 3px; }
+    a:hover { color: var(--accent); }
+
+    .wrap { width: min(980px, calc(100% - 2rem)); margin: 0 auto; }
+
+    /* —— Header —— */
+    .topbar {
+      background: linear-gradient(135deg, var(--ink) 0%, #122038 55%, #0c4a8c 140%);
+      color: var(--white);
+      padding: 1.25rem 0 2.75rem;
+      position: relative;
+      overflow: hidden;
+    }
+    .topbar::after {
+      content: "";
+      position: absolute;
+      inset: auto -10% -40% 40%;
+      height: 220px;
+      background: radial-gradient(circle, rgba(0, 123, 255, 0.35), transparent 65%);
+      pointer-events: none;
+    }
+    .brand-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+      flex-wrap: wrap;
+      position: relative;
+      z-index: 1;
+    }
+    .brand-left, .brand-right {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+    .brand-left img { width: 44px; height: 44px; border-radius: 10px; background: #fff; object-fit: contain; }
+    .brand-name {
+      font-family: var(--font-display);
+      font-weight: 700;
+      font-size: 1.15rem;
+      letter-spacing: -0.02em;
+      line-height: 1.2;
+    }
+    .brand-sub { font-size: 0.78rem; opacity: 0.75; }
+    .obrix-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.45rem;
+      padding: 0.4rem 0.75rem;
+      border-radius: 999px;
+      border: 1px solid rgba(255,255,255,0.2);
+      background: rgba(255,255,255,0.08);
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: #fff;
+      text-decoration: none;
+    }
+    .obrix-pill:hover { background: rgba(255,255,255,0.14); color: #fff; }
+    .obrix-mark {
+      width: 22px; height: 22px; border-radius: 6px;
+      background: linear-gradient(135deg, #007bff, #00a3ff);
+      display: grid; place-items: center;
+      font-family: var(--font-display); font-weight: 700; font-size: 0.7rem;
+    }
+
+    .hero {
+      position: relative;
+      z-index: 1;
+      margin-top: 2rem;
+      max-width: 40rem;
+    }
+    .hero h1 {
+      margin: 0 0 0.6rem;
+      font-family: var(--font-display);
+      font-size: clamp(1.85rem, 4vw, 2.55rem);
+      font-weight: 700;
+      letter-spacing: -0.03em;
+      line-height: 1.15;
+    }
+    .hero p {
+      margin: 0 0 1.25rem;
+      color: rgba(255,255,255,0.82);
+      font-size: 1.05rem;
+    }
+    .cta-row { display: flex; flex-wrap: wrap; gap: 0.65rem; }
+    .btn {
+      display: inline-flex; align-items: center; gap: 0.45rem;
+      padding: 0.7rem 1.1rem;
+      border-radius: 10px;
+      font-weight: 600;
+      font-size: 0.95rem;
+      text-decoration: none;
+      border: none;
+      cursor: pointer;
+    }
+    .btn-primary { background: var(--accent); color: #fff; }
+    .btn-primary:hover { background: #1a88ff; color: #fff; }
+    .btn-ghost {
+      background: rgba(255,255,255,0.1);
+      color: #fff;
+      border: 1px solid rgba(255,255,255,0.22);
+    }
+    .btn-ghost:hover { background: rgba(255,255,255,0.18); color: #fff; }
+
+    /* —— Cards / sections —— */
+    main { padding: 2rem 0 3.5rem; }
+    .panel {
+      background: var(--white);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      padding: 1.35rem 1.45rem;
+      margin-bottom: 1.25rem;
+    }
+    .panel h2 {
+      margin: 0 0 0.85rem;
+      font-family: var(--font-display);
+      font-size: 1.35rem;
+      letter-spacing: -0.02em;
+    }
+    .panel h3 {
+      margin: 1.35rem 0 0.55rem;
+      font-family: var(--font-display);
+      font-size: 1.05rem;
+      letter-spacing: -0.01em;
+    }
+    .eyebrow {
+      display: inline-block;
+      margin-bottom: 0.35rem;
+      font-size: 0.72rem;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--accent-deep);
+    }
+
+    .url-box {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 0.75rem;
+      padding: 1rem 1.1rem;
+      border-radius: 12px;
+      background: var(--accent-soft);
+      border: 1px solid #c5dcff;
+    }
+    .url-box strong { font-family: var(--font-display); }
+    .url-box a {
+      font-weight: 600;
+      word-break: break-all;
+      color: var(--accent-deep);
+    }
+    .meta-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 0.75rem;
+      margin-top: 1rem;
+    }
+    .meta-item {
+      padding: 0.75rem 0.9rem;
+      border-radius: 10px;
+      background: var(--paper);
+      border: 1px solid var(--line);
+    }
+    .meta-item span {
+      display: block;
+      font-size: 0.72rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--muted);
+      margin-bottom: 0.2rem;
+    }
+
+    /* Credentials */
+    .cred-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 1rem;
+    }
+    .cred-card {
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 1.1rem 1.15rem;
+      background: linear-gradient(180deg, #fff 0%, #f9fbff 100%);
+      position: relative;
+      overflow: hidden;
+    }
+    .cred-card::before {
+      content: "";
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 4px;
+    }
+    .cred-card.admin::before { background: #007bff; }
+    .cred-card.hr::before { background: #0d7a4f; }
+    .cred-card.candidate::before { background: #c45c16; }
+    .role-badge {
+      display: inline-block;
+      font-size: 0.7rem;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      padding: 0.25rem 0.5rem;
+      border-radius: 6px;
+      margin-bottom: 0.55rem;
+    }
+    .admin .role-badge { background: var(--accent-soft); color: var(--accent-deep); }
+    .hr .role-badge { background: var(--ok-soft); color: var(--ok); }
+    .candidate .role-badge { background: #ffeee3; color: #9a4a10; }
+    .cred-card h3 { margin: 0 0 0.65rem; font-size: 1.1rem; }
+    .cred-row {
+      display: grid;
+      grid-template-columns: 72px 1fr;
+      gap: 0.35rem;
+      font-size: 0.92rem;
+      margin-bottom: 0.35rem;
+    }
+    .cred-row dt { color: var(--muted); font-weight: 600; }
+    .cred-row dd {
+      margin: 0;
+      font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
+      font-size: 0.84rem;
+      word-break: break-all;
+      user-select: all;
+    }
+    .cred-card .lands {
+      margin-top: 0.75rem;
+      padding-top: 0.65rem;
+      border-top: 1px dashed var(--line);
+      font-size: 0.85rem;
+      color: var(--slate);
+    }
+    .cred-card .lands code {
+      background: var(--paper);
+      padding: 0.1rem 0.35rem;
+      border-radius: 4px;
+      font-size: 0.8rem;
+    }
+
+    .note {
+      margin-top: 1rem;
+      padding: 0.85rem 1rem;
+      border-radius: 10px;
+      background: var(--warn-soft);
+      border: 1px solid #f0dfb0;
+      color: #5c4300;
+      font-size: 0.92rem;
+    }
+
+    ol.steps, ul.check {
+      margin: 0.4rem 0 0;
+      padding-left: 1.25rem;
+    }
+    ol.steps li, ul.check li { margin: 0.35rem 0; }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.92rem;
+      margin-top: 0.5rem;
+    }
+    th, td {
+      text-align: left;
+      padding: 0.55rem 0.65rem;
+      border-bottom: 1px solid var(--line);
+      vertical-align: top;
+    }
+    th {
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--muted);
+      background: var(--paper);
+    }
+    code {
+      font-family: ui-monospace, Consolas, monospace;
+      font-size: 0.86em;
+      background: var(--paper);
+      padding: 0.1rem 0.35rem;
+      border-radius: 4px;
+    }
+
+    .toc {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+    }
+    .toc a {
+      text-decoration: none;
+      padding: 0.4rem 0.75rem;
+      border-radius: 999px;
+      background: var(--paper);
+      border: 1px solid var(--line);
+      color: var(--ink);
+      font-size: 0.85rem;
+      font-weight: 600;
+    }
+    .toc a:hover { border-color: var(--accent); color: var(--accent-deep); background: var(--accent-soft); }
+
+    .role-section { scroll-margin-top: 1rem; }
+    .kbd {
+      display: inline-block;
+      padding: 0.1rem 0.4rem;
+      border: 1px solid var(--line);
+      border-bottom-width: 2px;
+      border-radius: 5px;
+      font-family: ui-monospace, Consolas, monospace;
+      font-size: 0.78rem;
+      background: #fff;
+    }
+
+    /* Footer */
+    footer {
+      background: var(--ink);
+      color: rgba(255,255,255,0.78);
+      padding: 2rem 0 2.5rem;
+    }
+    .footer-grid {
+      display: grid;
+      grid-template-columns: 1.4fr 1fr;
+      gap: 1.5rem;
+    }
+    @media (max-width: 720px) {
+      .footer-grid { grid-template-columns: 1fr; }
+    }
+    footer h2 {
+      margin: 0 0 0.5rem;
+      font-family: var(--font-display);
+      color: #fff;
+      font-size: 1.15rem;
+    }
+    footer a { color: #8ec5ff; }
+    footer .copy {
+      margin-top: 1.5rem;
+      padding-top: 1rem;
+      border-top: 1px solid rgba(255,255,255,0.12);
+      font-size: 0.82rem;
+      opacity: 0.75;
+    }
+    .print-hint { font-size: 0.85rem; color: var(--muted); margin-top: 0.75rem; }
+
+    @media print {
+      body { background: #fff; }
+      .topbar { padding-bottom: 1.5rem; }
+      .btn, .print-hint { display: none; }
+      .panel { box-shadow: none; break-inside: avoid; }
+    }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="wrap">
+      <div class="brand-row">
+        <div class="brand-left">
+          <img src="/HireOps.png" alt="HireOps" width="44" height="44" />
+          <div>
+            <div class="brand-name">HireOps</div>
+            <div class="brand-sub">AI Recruitment Operations Platform</div>
+          </div>
+        </div>
+        <a class="obrix-pill" href="https://www.obrixlabs.com" target="_blank" rel="noopener">
+          <span class="obrix-mark">OL</span>
+          Built by Obrix Labs
+        </a>
+      </div>
+
+      <div class="hero">
+        <h1>User Usage Guide</h1>
+        <p>
+          End-to-end walkthrough to test HireOps with every portal role —
+          Super Admin, HR, and Candidate — on the live production app.
+        </p>
+        <div class="cta-row">
+          <a class="btn btn-primary" href="https://main.d2gei9r9nlt6ui.amplifyapp.com/login" target="_blank" rel="noopener">Open live login</a>
+          <a class="btn btn-ghost" href="#credentials">Jump to credentials</a>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <section class="panel" id="app-url">
+      <span class="eyebrow">Live application</span>
+      <h2>Where to test</h2>
+      <div class="url-box">
+        <strong>Production URL</strong>
+        <a href="https://main.d2gei9r9nlt6ui.amplifyapp.com/" target="_blank" rel="noopener">https://main.d2gei9r9nlt6ui.amplifyapp.com/</a>
+      </div>
+      <div class="meta-grid">
+        <div class="meta-item">
+          <span>Login</span>
+          <a href="https://main.d2gei9r9nlt6ui.amplifyapp.com/login" target="_blank" rel="noopener">/login</a>
+        </div>
+        <div class="meta-item">
+          <span>Candidate signup</span>
+          <a href="https://main.d2gei9r9nlt6ui.amplifyapp.com/candidate-signup" target="_blank" rel="noopener">/candidate-signup</a>
+        </div>
+        <div class="meta-item">
+          <span>Hosting</span>
+          AWS Amplify
+        </div>
+        <div class="meta-item">
+          <span>Recommended browser</span>
+          Chrome or Edge (latest)
+        </div>
+      </div>
+      <p class="print-hint">Tip: use <strong>File → Print → Save as PDF</strong> to keep a branded copy of this guide.</p>
+    </section>
+
+    <section class="panel">
+      <span class="eyebrow">Contents</span>
+      <h2>Quick navigation</h2>
+      <div class="toc">
+        <a href="#credentials">Demo credentials</a>
+        <a href="#signin">How to sign in</a>
+        <a href="#admin">Super Admin guide</a>
+        <a href="#hr">HR Workspace guide</a>
+        <a href="#candidate">Candidate guide</a>
+        <a href="#shortcuts">Shortcuts</a>
+        <a href="#defects">Report defects</a>
+        <a href="#contact">Obrix Labs contact</a>
+      </div>
+    </section>
+
+    <section class="panel" id="credentials">
+      <span class="eyebrow">Access</span>
+      <h2>Demo credentials — all roles</h2>
+      <p style="margin-top:0;color:var(--slate)">Passwords are case-sensitive. Use these accounts on the live URL only for authorized testing.</p>
+      <div class="cred-grid">
+        <article class="cred-card admin">
+          <span class="role-badge">Portal 1</span>
+          <h3>Super Admin</h3>
+          <dl>
+            <div class="cred-row"><dt>Email</dt><dd>s.alamri@oia.gov.om</dd></div>
+            <div class="cred-row"><dt>Password</dt><dd>OiaDemo#2026</dd></div>
+          </dl>
+          <p class="lands">After login → <code>/admin</code></p>
+        </article>
+        <article class="cred-card hr">
+          <span class="role-badge">Portal 2</span>
+          <h3>HR / Recruiter</h3>
+          <dl>
+            <div class="cred-row"><dt>Email</dt><dd>hr.demo@oia.gov.om</dd></div>
+            <div class="cred-row"><dt>Password</dt><dd>OiaHr#2026</dd></div>
+          </dl>
+          <p class="lands">After login → <code>/hr/dashboard</code></p>
+        </article>
+        <article class="cred-card candidate">
+          <span class="role-badge">Portal 3</span>
+          <h3>Candidate</h3>
+          <dl>
+            <div class="cred-row"><dt>Email</dt><dd>candidate.demo@example.com</dd></div>
+            <div class="cred-row"><dt>Password</dt><dd>OiaCand#2026</dd></div>
+          </dl>
+          <p class="lands">After login → <code>/candidate</code></p>
+        </article>
+      </div>
+      <div class="note">
+        <strong>Security:</strong> These are demo application logins for UAT. Infrastructure secrets (database, service role, AI keys) are not shared and remain under Obrix Labs control.
+      </div>
+    </section>
+
+    <section class="panel" id="signin">
+      <span class="eyebrow">Start here</span>
+      <h2>How to sign in &amp; switch roles</h2>
+      <ol class="steps">
+        <li>Open <a href="https://main.d2gei9r9nlt6ui.amplifyapp.com/login" target="_blank" rel="noopener">https://main.d2gei9r9nlt6ui.amplifyapp.com/login</a></li>
+        <li>Enter the email and password for the role you want to test.</li>
+        <li>Click <strong>Sign In</strong> — you should land in the matching portal.</li>
+        <li>To switch roles: avatar menu (top-right) → <strong>Sign out</strong> → log in with another account.</li>
+      </ol>
+      <p style="color:var(--slate);font-size:0.92rem;margin-bottom:0">
+        First open after idle may take a few seconds (Amplify cold start). Wait for the login page, then continue.
+      </p>
+    </section>
+
+    <section class="panel role-section" id="admin">
+      <span class="eyebrow">Role walkthrough</span>
+      <h2>1. Super Admin — what to test</h2>
+      <p style="margin-top:0;color:var(--slate)">
+        Account: <code>s.alamri@oia.gov.om</code> / <code>OiaDemo#2026</code>
+      </p>
+      <ol class="steps">
+        <li>Confirm you land on the Admin overview with platform KPIs / health.</li>
+        <li>Open <strong>Users</strong> — list loads; invite / manage UI is available.</li>
+        <li>Open <strong>Roles &amp; Permissions</strong> — roles are visible.</li>
+        <li>Open <strong>AI / System health</strong> — pages load without errors.</li>
+        <li>Open <strong>Audit trail</strong> — logs or a clear empty state.</li>
+        <li>Confirm a Candidate account cannot open <code>/admin</code> (security check after you switch roles).</li>
+      </ol>
+      <h3>Useful Admin URLs</h3>
+      <table>
+        <thead><tr><th>Path</th><th>Purpose</th></tr></thead>
+        <tbody>
+          <tr><td><code>/admin</code></td><td>Overview</td></tr>
+          <tr><td><code>/admin/users</code></td><td>User management</td></tr>
+          <tr><td><code>/admin/roles</code></td><td>Roles &amp; permissions</td></tr>
+          <tr><td><code>/admin/health</code></td><td>System health</td></tr>
+          <tr><td><code>/admin/audit</code></td><td>Audit trail</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section class="panel role-section" id="hr">
+      <span class="eyebrow">Role walkthrough</span>
+      <h2>2. HR Workspace — what to test</h2>
+      <p style="margin-top:0;color:var(--slate)">
+        Account: <code>hr.demo@oia.gov.om</code> / <code>OiaHr#2026</code>
+      </p>
+      <ol class="steps">
+        <li>Confirm landing on <code>/hr/dashboard</code> with KPIs and widgets.</li>
+        <li>Click <strong>Ask AI Copilot</strong> — side panel opens (no full-screen blur).</li>
+        <li><strong>Candidates</strong> — open the list, select a row, review the detail split view.</li>
+        <li><strong>Jobs</strong> — select a job; review matches / detail.</li>
+        <li>Use top-bar <strong>+ Create</strong> to open create flows.</li>
+        <li>Visit <strong>AI Matching</strong>, <strong>CV Parsing</strong>, <strong>AI Interviews</strong>, <strong>Assessments</strong>.</li>
+        <li>Open <strong>Analytics</strong> and <strong>Reports</strong> — try CSV/PDF export if available.</li>
+        <li>Open <strong>Calendar</strong> and <strong>Settings</strong>.</li>
+        <li>Toggle language (EN ↔ AR) if the globe control is present.</li>
+        <li>Try shortcuts: <span class="kbd">Ctrl</span>+<span class="kbd">K</span> search, <span class="kbd">Ctrl</span>+<span class="kbd">B</span> sidebar, <span class="kbd">Ctrl</span>+<span class="kbd">J</span> AI dock.</li>
+      </ol>
+      <h3>Useful HR URLs</h3>
+      <table>
+        <thead><tr><th>Path</th><th>Purpose</th></tr></thead>
+        <tbody>
+          <tr><td><code>/hr/dashboard</code></td><td>Dashboard</td></tr>
+          <tr><td><code>/hr/candidates</code></td><td>Candidates</td></tr>
+          <tr><td><code>/hr/jobs</code></td><td>Jobs</td></tr>
+          <tr><td><code>/hr/ai-matching</code></td><td>AI matching</td></tr>
+          <tr><td><code>/hr/cv-parsing</code></td><td>CV parsing</td></tr>
+          <tr><td><code>/hr/ai-interview</code></td><td>AI interviews</td></tr>
+          <tr><td><code>/hr/assessments</code></td><td>Assessments</td></tr>
+          <tr><td><code>/hr/calendar</code></td><td>Calendar</td></tr>
+          <tr><td><code>/hr/analytics</code></td><td>Analytics</td></tr>
+          <tr><td><code>/hr/reports</code></td><td>Reports</td></tr>
+          <tr><td><code>/hr/settings</code></td><td>Settings</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section class="panel role-section" id="candidate">
+      <span class="eyebrow">Role walkthrough</span>
+      <h2>3. Candidate Portal — what to test</h2>
+      <p style="margin-top:0;color:var(--slate)">
+        Account: <code>candidate.demo@example.com</code> / <code>OiaCand#2026</code>
+      </p>
+      <ol class="steps">
+        <li>Confirm landing on <code>/candidate</code> home.</li>
+        <li>Open <strong>Jobs</strong> — browse open roles and apply (or see “already applied”).</li>
+        <li>Open <strong>My applications</strong> — pipeline / status is visible.</li>
+        <li>Check <strong>Interviews</strong> and <strong>Assessments</strong> for pending items or empty states.</li>
+        <li>Update <strong>Profile</strong> / upload a resume if available — save succeeds.</li>
+        <li>Open <strong>Career Assistant</strong> — chat responds.</li>
+        <li>Sign out and visit <a href="https://main.d2gei9r9nlt6ui.amplifyapp.com/candidate-signup" target="_blank" rel="noopener">/candidate-signup</a> to review public registration (email confirmation may be required).</li>
+      </ol>
+      <h3>Useful Candidate URLs</h3>
+      <table>
+        <thead><tr><th>Path</th><th>Purpose</th></tr></thead>
+        <tbody>
+          <tr><td><code>/candidate</code></td><td>Home</td></tr>
+          <tr><td><code>/candidate/jobs</code></td><td>Open roles</td></tr>
+          <tr><td><code>/candidate/applications</code></td><td>Applications</td></tr>
+          <tr><td><code>/candidate/interviews</code></td><td>Interviews</td></tr>
+          <tr><td><code>/candidate/assessments</code></td><td>Assessments</td></tr>
+          <tr><td><code>/candidate/assistant</code></td><td>Career assistant</td></tr>
+          <tr><td><code>/candidate/profile</code></td><td>Profile</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section class="panel" id="shortcuts">
+      <span class="eyebrow">Productivity</span>
+      <h2>Keyboard shortcuts (HR / Admin)</h2>
+      <table>
+        <thead><tr><th>Shortcut</th><th>Action</th></tr></thead>
+        <tbody>
+          <tr><td><span class="kbd">Ctrl</span> / <span class="kbd">⌘</span> + <span class="kbd">K</span></td><td>Command palette / search</td></tr>
+          <tr><td><span class="kbd">Ctrl</span> / <span class="kbd">⌘</span> + <span class="kbd">B</span></td><td>Toggle sidebar</td></tr>
+          <tr><td><span class="kbd">Ctrl</span> / <span class="kbd">⌘</span> + <span class="kbd">J</span></td><td>Toggle AI Copilot</td></tr>
+          <tr><td><span class="kbd">?</span></td><td>Shortcuts help</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section class="panel" id="defects">
+      <span class="eyebrow">Feedback</span>
+      <h2>How to report defects</h2>
+      <p style="margin-top:0">Email <a href="mailto:info@obrixlabs.com">info@obrixlabs.com</a> with:</p>
+      <ul class="check">
+        <li>Portal + account used</li>
+        <li>Exact URL</li>
+        <li>Steps to reproduce</li>
+        <li>Expected vs actual result</li>
+        <li>Screenshot or screen recording</li>
+        <li>Browser + OS</li>
+      </ul>
+      <p style="font-size:0.92rem;color:var(--slate)">
+        Subject example: <code>[HireOps UAT] HR AI Copilot — Chrome Win11</code>
+      </p>
+    </section>
+  </main>
+
+  <footer id="contact">
+    <div class="wrap">
+      <div class="footer-grid">
+        <div>
+          <h2>Obrix Labs</h2>
+          <p style="margin:0 0 0.75rem">
+            HireOps is proprietary software built by Obrix Labs for authorized organizations.
+            Unauthorized use, copying, or redistribution is prohibited.
+          </p>
+          <p style="margin:0">
+            Website: <a href="https://www.obrixlabs.com" target="_blank" rel="noopener">www.obrixlabs.com</a><br />
+            Email: <a href="mailto:info@obrixlabs.com">info@obrixlabs.com</a><br />
+            Live app: <a href="https://main.d2gei9r9nlt6ui.amplifyapp.com/" target="_blank" rel="noopener">HireOps production</a>
+          </p>
+        </div>
+        <div>
+          <h2>Document</h2>
+          <p style="margin:0">
+            <strong style="color:#fff">User Usage Guide</strong><br />
+            Product: HireOps — AI Recruitment Operations Platform<br />
+            Version: 1.0 · 2026<br />
+            Also available in the repo as <code style="background:rgba(255,255,255,0.08);color:#cfe6ff">docs/USER_USAGE_GUIDE.md</code>
+          </p>
+        </div>
+      </div>
+      <p class="copy">© 2026 Obrix Labs. All rights reserved. HireOps® branding and product identity are owned by Obrix Labs.</p>
+    </div>
+  </footer>
+</body>
+</html>

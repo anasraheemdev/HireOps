@@ -69,7 +69,7 @@ export default function AdminFeaturesPage() {
                 disabled={upsert.isPending}
                 onCheckedChange={(checked) => {
                   upsert.mutate(
-                    { key: f.key, enabled: checked, description: f.description ?? undefined },
+                    { key: f.key as "ai_interview" | "semantic_matching" | "career_assistant", enabled: checked, description: f.description ?? undefined },
                     {
                       onSuccess: () => toast.success(`${titleCase(f.key)} ${checked ? "enabled" : "disabled"}`),
                       onError: (err) => toast.error(err instanceof Error ? err.message : "Failed to update flag"),

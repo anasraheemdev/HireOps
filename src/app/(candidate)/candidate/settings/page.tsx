@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { PageHeader } from "@/components/shared/page-header";
 import { ErrorState, PageSkeleton } from "@/components/shared/enterprise-ui";
 import { MotionPage } from "@/components/shared/motion";
@@ -14,14 +14,13 @@ import { toast } from "sonner";
 export default function CandidateSettingsPage() {
   const { data, isLoading, isError, error, refetch } = useMeQuery();
   const update = useUpdateMeMutation();
-  const [phone, setPhone] = useState("");
+  const [phoneDraft, setPhone] = useState<string | undefined>();
+  const phone = phoneDraft ?? String(data?.candidate?.phone ?? data?.profile?.phone ?? "");
   const [password, setPassword] = useState("");
   const [password2, setPassword2] = useState("");
   const [savingPw, setSavingPw] = useState(false);
 
-  useEffect(() => {
-    if (data) setPhone(String(data.candidate?.phone ?? data.profile?.phone ?? ""));
-  }, [data]);
+
 
   if (isLoading) return <PageSkeleton rows={4} />;
   if (isError) {

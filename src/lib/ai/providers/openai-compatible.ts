@@ -13,14 +13,14 @@ export class OpenAICompatibleProvider implements AIProvider {
   private chatModel: string;
   private embeddingModel: string;
 
-  constructor(opts: { name: string; baseUrl: string; apiKeyEnv: string; defaultChatModel: string; defaultEmbeddingModel: string }) {
-    const apiKey = process.env[opts.apiKeyEnv];
+  constructor(opts: { name: string; baseUrl: string; apiKeyEnv: string; defaultChatModel: string; defaultEmbeddingModel: string; apiKey?:string; chatModel?:string; embeddingModel?:string }) {
+    const apiKey = opts.apiKey || process.env[opts.apiKeyEnv];
     if (!apiKey) throw new AIProviderError(opts.name, `${opts.apiKeyEnv} is not set`);
     this.name = opts.name;
     this.apiKey = apiKey;
     this.baseUrl = opts.baseUrl;
-    this.chatModel = process.env.AI_CHAT_MODEL || opts.defaultChatModel;
-    this.embeddingModel = process.env.AI_EMBEDDING_MODEL || opts.defaultEmbeddingModel;
+    this.chatModel = opts.chatModel || process.env.AI_CHAT_MODEL || opts.defaultChatModel;
+    this.embeddingModel = opts.embeddingModel || process.env.AI_EMBEDDING_MODEL || opts.defaultEmbeddingModel;
   }
 
   private headers() {
@@ -30,6 +30,7 @@ export class OpenAICompatibleProvider implements AIProvider {
   async chatJSON(messages: ChatMessage[], options?: ChatJSONOptions): Promise<unknown> {
     const res = await fetch(`${this.baseUrl}/chat/completions`, {
       method: "POST",
+      signal: AbortSignal.timeout(60000),
       headers: this.headers(),
       body: JSON.stringify({
         model: this.chatModel,
@@ -60,6 +61,7 @@ export class OpenAICompatibleProvider implements AIProvider {
   ): Promise<string> {
     const res = await fetch(`${this.baseUrl}/chat/completions`, {
       method: "POST",
+      signal: AbortSignal.timeout(60000),
       headers: this.headers(),
       body: JSON.stringify({
         model: this.chatModel,
@@ -68,7 +70,7 @@ export class OpenAICompatibleProvider implements AIProvider {
         max_tokens: options?.maxTokens ?? 1200,
         stream: true,
       }),
-      signal: options?.signal,
+
     });
     if (!res.ok || !res.body) {
       const body = await res.text().catch(() => "");
@@ -112,6 +114,7 @@ export class OpenAICompatibleProvider implements AIProvider {
   async embedBatch(texts: string[]): Promise<number[][]> {
     const res = await fetch(`${this.baseUrl}/embeddings`, {
       method: "POST",
+      signal: AbortSignal.timeout(60000),
       headers: this.headers(),
       body: JSON.stringify({ model: this.embeddingModel, input: texts }),
     });

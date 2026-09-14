@@ -52,7 +52,7 @@ export const portalHome: Record<PortalRole, string> = {
 export const hrNav: NavGroup[] = [
   {
     title: "Overview",
-    items: [{ href: "/hr/dashboard", label: "Dashboard", icon: LayoutDashboard, permission: "portal.hr" }],
+    items: [{ href: "/hr/dashboard", label: "Dashboard", icon: LayoutDashboard, permission: "portal.hr" }, { href: "/hr/presentation", label: "Application walkthrough", icon: FileText, permission: "portal.hr" }],
   },
   {
     title: "Recruitment",

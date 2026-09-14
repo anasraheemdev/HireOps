@@ -26,7 +26,7 @@ export default function AdminAiPage() {
 
   const maskedFor = (key: string) => secrets?.find((s) => s.key === key)?.masked ?? null;
 
-  const handleSaveField = async (key: string, label: string) => {
+  const handleSaveField = async (key: typeof fields[number]["key"], label: string) => {
     const value = drafts[key]?.trim();
     if (!value) {
       toast.error(`Enter a value for ${label} before saving`);
@@ -97,6 +97,8 @@ export default function AdminAiPage() {
                 </div>
                 <div className="flex gap-2">
                   <Input
+                    type={f.key === "ai_api_key" ? "password" : "text"}
+                    autoComplete="off"
                     id={f.key}
                     value={drafts[f.key] ?? ""}
                     onChange={(e) => setDrafts((d) => ({ ...d, [f.key]: e.target.value }))}
@@ -118,10 +120,7 @@ export default function AdminAiPage() {
           })}
 
           <p className="text-[11px] text-muted-foreground pt-2 border-t border-white/10">
-            Note: the runtime AI provider currently reads <code className="font-mono">AI_PROVIDER</code>,{" "}
-            <code className="font-mono">AI_CHAT_MODEL</code>, and related keys from server environment variables. Values
-            saved here are persisted for reference and future provider wiring; update your deployment environment to
-            change live inference behavior today.
+            Saved provider, chat model and credentials apply to subsequent AI requests for your organization. Embeddings use the deployment provider and a fixed model to preserve comparison accuracy. Credentials are encrypted at rest; model changes require verification before presentation.
           </p>
         </div>
       )}

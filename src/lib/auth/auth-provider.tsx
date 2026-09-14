@@ -66,7 +66,7 @@ export function AuthProvider({
 
   const hasPermission = useCallback(
     (code: string) => {
-      if (!profile) return false;
+      if (!profile || profile.status !== "active") return false;
       if (profile.portalRole === "super_admin" || profile.permissions.includes("portal.admin")) return true;
       return profile.permissions.includes(code);
     },

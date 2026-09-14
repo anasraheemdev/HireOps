@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { requirePermission, jsonError, ApiError } from "@/lib/api/helpers";
+import { jsonError, ApiError } from "@/lib/api/helpers";
+import { interviewAccess } from '@/lib/services/interview-access';
 import { getInterviewSession, sendInterviewReply, finalizeInterview } from "@/lib/services/enterprise.service";
 
 type Params = { params: Promise<{ id: string }> };
@@ -11,7 +12,7 @@ export async function GET(_req: Request, { params }: Params) {
   try {
     const { id: rawId } = await params;
     const id = sessionIdSchema.parse(rawId);
-    const { supabase } = await requirePermission("interviews.read", "interviews.conduct");
+    const { supabase } = await interviewAccess(id);
     const data = await getInterviewSession(supabase, id);
     if (!data) throw new ApiError(404, "Interview not found");
     return NextResponse.json({ data });
@@ -24,11 +25,11 @@ export async function POST(request: Request, { params }: Params) {
   try {
     const { id: rawId } = await params;
     const id = sessionIdSchema.parse(rawId);
-    const { supabase } = await requirePermission("interviews.conduct", "interviews.write");
+    const { supabase } = await interviewAccess(id, true);
     const body = z
       .object({
         action: z.enum(["message", "finalize"]),
-        content: z.string().optional(),
+        content: z.string().max(12000).optional(),
       })
       .parse(await request.json());
 

@@ -1,3 +1,4 @@
+import { requireFeature } from '@/lib/services/feature-access';
 import { NextResponse } from "next/server";
 import { requirePermission, jsonError, ApiError } from "@/lib/api/helpers";
 import { matchCandidatesForJob } from "@/lib/services/matching.service";
@@ -8,7 +9,8 @@ type Params = { params: Promise<{ id: string }> };
 
 export async function GET(_request: Request, { params }: Params) {
   try {
-    const { supabase } = await requirePermission("candidates.read");
+    const { supabase, profile } = await requirePermission("candidates.read");
+    await requireFeature(profile.organizationId, "semantic_matching");
     const { id } = await params;
     if (!id) throw new ApiError(400, "Missing job id");
 

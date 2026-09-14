@@ -1,3 +1,5 @@
+import { ApiError } from '@/lib/api/helpers';
+import { createAdminSupabaseClient } from '@/lib/supabase/admin';
 ﻿import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, ApplicationStage } from "@/lib/supabase/database.types";
@@ -49,6 +51,8 @@ export async function applyToJob(
   jobId: string,
   userId: string
 ) {
+  const {data:job}=await supabase.from('jobs').select('id,status').eq('id',jobId).single();
+  if(!job || job.status!=='open') throw new ApiError(400,'This job is not accepting applications');
   const { data: existing } = await supabase
     .from("applications")
     .select("id, stage")
@@ -97,11 +101,16 @@ export async function respondToOffer(
   candidateId: string,
   status: "accepted" | "declined"
 ) {
-  const { data, error } = await supabase
+  const {data:offer}=await supabase.from('offers').select('id,status').eq('id',offerId).eq('candidate_id',candidateId).single();
+  if(!offer) throw new ApiError(404,'Offer not found');
+  if(offer.status===status) return offer;
+  if(!['sent','pending'].includes(offer.status)) throw new ApiError(409,'This offer is no longer awaiting a response');
+  const { data, error } = await createAdminSupabaseClient()
     .from("offers")
     .update({ status, updated_at: new Date().toISOString() })
     .eq("id", offerId)
     .eq("candidate_id", candidateId)
+    .in('status',['sent','pending'])
     .select("*")
     .single();
   if (error) throw error;
@@ -252,6 +261,13 @@ export async function updateMe(
     if (error) throw error;
   }
 
+  if(candidateId && (input.headline!==undefined || input.experienceYears!==undefined)) {
+    const admin=createAdminSupabaseClient();
+    const {error}=await admin.from('candidates').update({embedding:null}).eq('id',candidateId);
+    if(error) throw error;
+    const {error:scoreError}=await admin.from('applications').update({match_score:null,ai_score:null,confidence_score:null,match_reasoning:null,ai_recommendation:null}).eq('candidate_id',candidateId);
+    if(scoreError) throw scoreError;
+  }
   return getMeProfile(supabase, userId, candidateId);
 }
 
@@ -366,7 +382,7 @@ export async function careerAssistantReply(
     .eq("status", "open")
     .limit(8);
 
-  const provider = getAIProvider();
+  const provider = await getAIProvider();
   const result = (await provider.chatJSON(
     [
       {

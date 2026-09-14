@@ -4,13 +4,11 @@ import mammoth from "mammoth";
 
 const PDF_MIME = "application/pdf";
 const DOCX_MIME = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
-const DOC_MIME = "application/msword";
 
 export function isSupportedResumeMime(mime: string, fileName: string): boolean {
   const lower = fileName.toLowerCase();
   if (mime === PDF_MIME || lower.endsWith(".pdf")) return true;
   if (mime === DOCX_MIME || lower.endsWith(".docx")) return true;
-  if (mime === DOC_MIME || lower.endsWith(".doc")) return true;
   return false;
 }
 
@@ -22,7 +20,7 @@ export async function extractResumeText(
 ): Promise<string> {
   const lower = fileName.toLowerCase();
   const isPdf = mimeType === PDF_MIME || lower.endsWith(".pdf");
-  const isDocx = mimeType === DOCX_MIME || lower.endsWith(".docx") || mimeType === DOC_MIME || lower.endsWith(".doc");
+  const isDocx = mimeType === DOCX_MIME || lower.endsWith(".docx");
 
   if (isPdf) {
     const parser = new PDFParse({ data: buffer });

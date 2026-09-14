@@ -38,8 +38,13 @@ export async function updateCandidate(supabase: Client, id: string, input: Updat
   if (input.location !== undefined) patch.location = input.location;
   if (input.nationality !== undefined) patch.nationality = input.nationality;
   if (input.experienceYears !== undefined) patch.experience_years = input.experienceYears;
+  if(input.headline!==undefined || input.experienceYears!==undefined) patch.embedding=null;
 
   await updateCandidateRaw(supabase, id, patch);
+  if(patch.embedding===null) {
+    const {error}=await supabase.from('applications').update({match_score:null,ai_score:null,confidence_score:null,match_reasoning:null,ai_recommendation:null}).eq('candidate_id',id);
+    if(error) throw error;
+  }
   const detail = await getCandidateById(supabase, id);
   if (!detail) throw new Error("Candidate updated but could not be reloaded");
   return detail;
@@ -52,6 +57,6 @@ export async function setApplicationDecision(
 ) {
   return updateApplicationStage(supabase, applicationId, {
     shortlisted: decision === "shortlist",
-    stage: decision === "reject" ? "rejected" : undefined,
+    stage: decision === "reject" ? "rejected" : "screening",
   });
 }

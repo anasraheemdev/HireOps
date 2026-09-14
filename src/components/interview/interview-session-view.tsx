@@ -73,10 +73,12 @@ export function InterviewSessionView({
     );
     setSession(data.session);
     setMessages(data.messages);
+    if(data.session.status === "completed") setEvaluation({ ...data.session, ...(data.session.scores as object ?? {}) });
   }, [sessionId]);
 
   useEffect(() => {
-    load().catch((e) => toast.error(e.message));
+    const timer = setTimeout(() => { void load().catch((e) => toast.error(e.message)); }, 0);
+    return () => clearTimeout(timer);
   }, [load]);
 
   useEffect(() => {
@@ -355,7 +357,7 @@ export function InterviewSessionView({
               <p className="text-xs text-muted-foreground">Scores appear after you end the interview.</p>
             ) : (
               <div className="space-y-2">
-                {Object.entries(scores).map(([k, v]) => (
+                {Object.entries(scores).filter(([, v]) => typeof v === "number" && Number.isFinite(v)).map(([k, v]) => (
                   <MetricBar key={k} label={k} value={Number(v)} />
                 ))}
               </div>

@@ -24,12 +24,12 @@ export class OpenRouterProvider implements AIProvider {
   private chatModel: string;
   private embeddingModel: string;
 
-  constructor() {
-    const apiKey = process.env.OPENROUTER_API_KEY;
+  constructor(config?: {apiKey?:string; chatModel?:string; embeddingModel?:string}) {
+    const apiKey = config?.apiKey || process.env.OPENROUTER_API_KEY;
     if (!apiKey) throw new AIProviderError("openrouter", "OPENROUTER_API_KEY is not set");
     this.apiKey = apiKey;
-    this.chatModel = process.env.AI_CHAT_MODEL || "qwen/qwen-2.5-72b-instruct";
-    this.embeddingModel = process.env.AI_EMBEDDING_MODEL || "openai/text-embedding-3-small";
+    this.chatModel = config?.chatModel || process.env.AI_CHAT_MODEL || "qwen/qwen-2.5-72b-instruct";
+    this.embeddingModel = config?.embeddingModel || process.env.AI_EMBEDDING_MODEL || "openai/text-embedding-3-small";
   }
 
   private headers() {
@@ -64,6 +64,7 @@ export class OpenRouterProvider implements AIProvider {
     const post = (body: Record<string, unknown>) =>
       fetch(`${BASE_URL}/chat/completions`, {
         method: "POST",
+      signal: AbortSignal.timeout(60000),
         headers: this.headers(),
         body: JSON.stringify(body),
       });
@@ -117,6 +118,7 @@ export class OpenRouterProvider implements AIProvider {
   ): Promise<string> {
     const res = await fetch(`${BASE_URL}/chat/completions`, {
       method: "POST",
+      signal: AbortSignal.timeout(60000),
       headers: this.headers(),
       body: JSON.stringify({
         model: this.chatModel,
@@ -125,7 +127,7 @@ export class OpenRouterProvider implements AIProvider {
         max_tokens: options?.maxTokens ?? 1200,
         stream: true,
       }),
-      signal: options?.signal,
+
     });
 
     if (!res.ok || !res.body) {
@@ -175,6 +177,7 @@ export class OpenRouterProvider implements AIProvider {
   async embedBatch(texts: string[]): Promise<number[][]> {
     const res = await fetch(`${BASE_URL}/embeddings`, {
       method: "POST",
+      signal: AbortSignal.timeout(60000),
       headers: this.headers(),
       body: JSON.stringify({ model: this.embeddingModel, input: texts }),
     });

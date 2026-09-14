@@ -1,11 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Building2, Sparkles, ShieldCheck, FileClock, Save } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Switch } from "@/components/ui/switch";
+
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -46,21 +46,16 @@ export default function SettingsPage() {
     retry: false,
   });
 
-  const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
-  const [hq, setHq] = useState("");
-  const [timezone, setTimezone] = useState("Asia/Muscat");
-  const [biasDetection, setBiasDetection] = useState(true);
-  const [autoShortlist, setAutoShortlist] = useState(false);
-  const [mfa, setMfa] = useState(true);
+  const [nameDraft, setName] = useState<string | undefined>();
+  const name = nameDraft ?? orgQuery.data?.name ?? "";
+  const [emailDraft, setEmail] = useState<string | undefined>();
+  const email = emailDraft ?? orgQuery.data?.contact_email ?? "";
+  const [hqDraft, setHq] = useState<string | undefined>();
+  const hq = hqDraft ?? orgQuery.data?.headquarters ?? "";
+  const [timezoneDraft, setTimezone] = useState<string | undefined>();
+  const timezone = timezoneDraft ?? orgQuery.data?.timezone ?? "Asia/Muscat";
 
-  useEffect(() => {
-    if (!orgQuery.data) return;
-    setName(orgQuery.data.name ?? "");
-    setEmail(orgQuery.data.contact_email ?? "");
-    setHq(orgQuery.data.headquarters ?? "");
-    setTimezone(orgQuery.data.timezone ?? "Asia/Muscat");
-  }, [orgQuery.data]);
+
 
   const saveOrg = useMutation({
     mutationFn: () =>
@@ -154,51 +149,10 @@ export default function SettingsPage() {
         </TabsContent>
 
         <TabsContent value="ai" className="space-y-4">
-          <div className="rounded-xl border border-white/[0.07] bg-white/[0.02] p-4 space-y-4 max-w-xl">
-            <p className="text-sm text-muted-foreground">
-              Runtime AI provider is configured via server environment variables. Toggle local hiring preferences below.
-            </p>
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium">Bias detection</p>
-                <p className="text-xs text-muted-foreground">Flag potentially biased language in evaluations</p>
-              </div>
-              <Switch checked={biasDetection} onCheckedChange={setBiasDetection} />
-            </div>
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium">Auto-shortlist high matches</p>
-                <p className="text-xs text-muted-foreground">Automatically shortlist ≥85% semantic matches</p>
-              </div>
-              <Switch checked={autoShortlist} onCheckedChange={setAutoShortlist} />
-            </div>
-            <Button
-              variant="outline"
-              className="cursor-pointer"
-              onClick={() => toast.success("AI preferences saved for this session")}
-            >
-              Save AI preferences
-            </Button>
-          </div>
+          <div className="glass-card p-5 max-w-xl space-y-3"><h2 className="font-semibold">AI governance</h2><p className="text-sm text-muted-foreground">Your administrator manages the inference provider, model and encrypted credentials in the Admin Console. Scoring shows job-related evidence and missing assessments. Shortlisting remains an explicit HR decision.</p></div>
         </TabsContent>
-
         <TabsContent value="security" className="space-y-4">
-          <div className="rounded-xl border border-white/[0.07] bg-white/[0.02] p-4 space-y-4 max-w-xl">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium">Require MFA for HR staff</p>
-                <p className="text-xs text-muted-foreground">Enforce multi-factor authentication at login</p>
-              </div>
-              <Switch checked={mfa} onCheckedChange={setMfa} />
-            </div>
-            <Button
-              variant="outline"
-              className="cursor-pointer"
-              onClick={() => toast.success("Security preference recorded")}
-            >
-              Save security settings
-            </Button>
-          </div>
+          <div className="glass-card p-5 max-w-xl space-y-3"><h2 className="font-semibold">Access controls</h2><p className="text-sm text-muted-foreground">API authorization and database policies enforce organization and candidate access. Administrators can suspend accounts and manage roles. Exam answer keys and score updates are server-managed.</p><p className="text-sm text-muted-foreground">MFA and external identity-provider setup require deployment configuration; they are not enabled by a local preference switch.</p></div>
         </TabsContent>
 
         <TabsContent value="audit">

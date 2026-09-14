@@ -14,6 +14,7 @@ export async function POST(request: Request) {
     const form = await request.formData();
     const file = form.get("file");
     if (!(file instanceof File)) throw new ApiError(400, "Missing file upload");
+    if (file.size === 0 || file.size > 10 * 1024 * 1024) throw new ApiError(400, "Upload a non-empty PDF or DOCX up to 10 MB.");
 
     const buffer = Buffer.from(await file.arrayBuffer());
     const mimeType = file.type || "application/octet-stream";
@@ -27,13 +28,13 @@ export async function POST(request: Request) {
     const safeName = fileName.replace(/[^a-zA-Z0-9._-]/g, "_");
     const storagePath = `${profile.organizationId}/tmp/${tmpId}/${safeName}`;
 
+    const result = await parseResumeBuffer(buffer, mimeType, fileName);
     const { error: uploadError } = await supabase.storage.from("resumes").upload(storagePath, buffer, {
       contentType: mimeType,
       upsert: false,
     });
     if (uploadError) throw new ApiError(500, `Storage upload failed: ${uploadError.message}`);
 
-    const result = await parseResumeBuffer(buffer, mimeType, fileName);
 
     return NextResponse.json({
       data: {

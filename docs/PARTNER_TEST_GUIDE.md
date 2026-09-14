@@ -6,6 +6,9 @@
 **Support email:** [info@obrixlabs.com](mailto:info@obrixlabs.com)  
 **Copyright:** © 2026 Obrix Labs. All rights reserved. Proprietary software — built for specific organizations; use only with permission.
 
+**Branded User Usage Guide (recommended for testers):**  
+[https://main.d2gei9r9nlt6ui.amplifyapp.com/user-guide.html](https://main.d2gei9r9nlt6ui.amplifyapp.com/user-guide.html) · [USER_USAGE_GUIDE.md](./USER_USAGE_GUIDE.md)
+
 ---
 
 ## 1. Live application

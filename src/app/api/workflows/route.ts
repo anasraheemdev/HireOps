@@ -4,7 +4,7 @@ import { requirePermission, jsonError } from "@/lib/api/helpers";
 export async function GET() {
   try {
     const { supabase } = await requirePermission("workflows.manage", "portal.hr", "portal.admin");
-    const { data, error } = await (supabase as any)
+    const { data, error } = await supabase
       .from("workflow_stages")
       .select("*")
       .order("sort_order");

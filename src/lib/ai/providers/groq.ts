@@ -12,16 +12,17 @@ export class GroqProvider implements AIProvider {
   private apiKey: string;
   private chatModel: string;
 
-  constructor() {
-    const apiKey = process.env.GROQ_API_KEY;
+  constructor(config?: {apiKey?:string; chatModel?:string}) {
+    const apiKey = config?.apiKey || process.env.GROQ_API_KEY;
     if (!apiKey) throw new AIProviderError("groq", "GROQ_API_KEY is not set");
     this.apiKey = apiKey;
-    this.chatModel = process.env.AI_CHAT_MODEL || "llama-3.3-70b-versatile";
+    this.chatModel = config?.chatModel || process.env.AI_CHAT_MODEL || "llama-3.3-70b-versatile";
   }
 
   async chatJSON(messages: ChatMessage[], options?: ChatJSONOptions): Promise<unknown> {
     const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
       method: "POST",
+      signal: AbortSignal.timeout(60000),
       headers: { Authorization: `Bearer ${this.apiKey}`, "Content-Type": "application/json" },
       body: JSON.stringify({
         model: this.chatModel,
@@ -52,6 +53,7 @@ export class GroqProvider implements AIProvider {
   ): Promise<string> {
     const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
       method: "POST",
+      signal: AbortSignal.timeout(60000),
       headers: { Authorization: `Bearer ${this.apiKey}`, "Content-Type": "application/json" },
       body: JSON.stringify({
         model: this.chatModel,
@@ -60,7 +62,7 @@ export class GroqProvider implements AIProvider {
         max_tokens: options?.maxTokens ?? 1200,
         stream: true,
       }),
-      signal: options?.signal,
+
     });
     if (!res.ok || !res.body) {
       const body = await res.text().catch(() => "");

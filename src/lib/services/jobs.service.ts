@@ -138,5 +138,11 @@ export async function updateJob(supabase: Client, id: string, input: UpdateJobIn
   }
 
   const job = await updateJobRaw(supabase, id, patch);
+  if ([input.title, input.description, input.requiredSkills, input.minExperience, input.level, input.location].some(v => v !== undefined)) {
+    const { error } = await supabase.from("jobs").update({ embedding: null }).eq("id", id);
+    if (error) throw error;
+    const {error:scoreError}=await supabase.from('applications').update({match_score:null,ai_score:null,confidence_score:null,match_reasoning:null,ai_recommendation:null}).eq('job_id',id);
+    if(scoreError) throw scoreError;
+  }
   return mapJob(job);
 }

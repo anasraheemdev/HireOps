@@ -93,6 +93,8 @@ export async function createCandidate(
   createdBy: string,
   input: CreateCandidateInput
 ): Promise<Candidate> {
+  if(input.resumeFilePath && (!input.resumeFilePath.startsWith(organizationId+'/') || input.resumeFilePath.includes('..'))) throw new Error('Invalid resume storage path');
+  input.skills=[...new Set(input.skills.map(s=>s.trim()).filter(Boolean))];
   const color = AVATAR_COLORS[Math.floor(Math.random() * AVATAR_COLORS.length)];
 
   const { data: candidate, error } = await supabase
@@ -117,6 +119,7 @@ export async function createCandidate(
 
   if (error) throw error;
 
+  try {
   if (input.skills.length) {
     const { error: skillsError } = await supabase.from("candidate_skills").insert(
       input.skills.map((skill) => ({ candidate_id: candidate.id, skill }))
@@ -215,4 +218,9 @@ export async function createCandidate(
   const detail = await getCandidateById(supabase, candidate.id);
   if (!detail) throw new Error("Candidate created but could not be reloaded");
   return detail;
+  } catch(error) {
+    const {error:cleanupError}=await supabase.from('candidates').delete().eq('id',candidate.id).eq('organization_id',organizationId);
+    if(cleanupError) console.error('Candidate rollback failed',cleanupError.code);
+    throw error;
+  }
 }

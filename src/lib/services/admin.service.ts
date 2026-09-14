@@ -1,3 +1,4 @@
+import { encryptSecret, decryptSecret } from '@/lib/ai/secrets';
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { z } from "zod";
 import type { Database, PortalRoleDb, UserStatus } from "@/lib/supabase/database.types";
@@ -18,7 +19,7 @@ async function logAdminAudit(
   }
 ) {
   try {
-    await (client as any).from("audit_logs").insert({
+    await client.from("audit_logs").insert({
       organization_id: params.organizationId,
       actor_id: params.actorId,
       action: params.action,
@@ -84,7 +85,7 @@ function mapUserRow(row: UserRow): AdminUser {
 const USER_SELECT = "id, email, full_name, avatar_url, status, portal_role, role_id, last_login_at, created_at, roles ( id, name ), departments ( name )";
 
 export async function listUsers(supabase: Client, organizationId: string): Promise<AdminUser[]> {
-  const { data, error } = await (supabase as any)
+  const { data, error } = await supabase
     .from("profiles")
     .select(USER_SELECT)
     .eq("organization_id", organizationId)
@@ -115,7 +116,7 @@ export async function inviteUser(organizationId: string, actorId: string, input:
   const userId = linkData.user?.id;
   if (!userId) throw new ApiError(500, "Invite succeeded but no user id was returned");
 
-  const { data, error } = await (admin as any)
+  const { data, error } = await admin
     .from("profiles")
     .update({
       organization_id: organizationId,
@@ -153,13 +154,13 @@ export type UpdateUserInput = z.infer<typeof updateUserSchema>;
 
 export async function updateUser(organizationId: string, actorId: string, userId: string, input: UpdateUserInput) {
   const admin = createAdminSupabaseClient();
-  const patch: Record<string, unknown> = {};
+  const patch: Database["public"]["Tables"]["profiles"]["Update"] = {};
   if (input.roleId !== undefined) patch.role_id = input.roleId;
   if (input.portalRole !== undefined) patch.portal_role = input.portalRole;
   if (input.status !== undefined) patch.status = input.status;
   if (Object.keys(patch).length === 0) throw new ApiError(400, "No changes provided");
 
-  const { data, error } = await (admin as any)
+  const { data, error } = await admin
     .from("profiles")
     .update(patch)
     .eq("id", userId)
@@ -203,7 +204,7 @@ export async function listRolesWithPermissions(supabase: Client, organizationId:
   const permsByRole = new Map<string, string[]>();
 
   if (roleIds.length > 0) {
-    const { data: rolePerms, error: rpError } = await (supabase as any)
+    const { data: rolePerms, error: rpError } = await supabase
       .from("role_permissions")
       .select("role_id, permissions ( code )")
       .in("role_id", roleIds);
@@ -253,7 +254,7 @@ export type UpdateOrganizationInput = z.infer<typeof updateOrganizationSchema>;
 
 export async function updateOrganization(organizationId: string, actorId: string, input: UpdateOrganizationInput) {
   const admin = createAdminSupabaseClient();
-  const patch: Record<string, unknown> = {};
+  const patch: Database["public"]["Tables"]["organizations"]["Update"] = {};
   if (input.name !== undefined) patch.name = input.name;
   if (input.registrationId !== undefined) patch.registration_id = input.registrationId;
   if (input.contactEmail !== undefined) patch.contact_email = input.contactEmail;
@@ -263,7 +264,7 @@ export async function updateOrganization(organizationId: string, actorId: string
   if (input.timezone !== undefined) patch.timezone = input.timezone;
   if (Object.keys(patch).length === 0) throw new ApiError(400, "No changes provided");
 
-  const { data, error } = await (admin as any).from("organizations").update(patch).eq("id", organizationId).select("*").single();
+  const { data, error } = await admin.from("organizations").update(patch).eq("id", organizationId).select("*").single();
   if (error) throw error;
 
   await logAdminAudit(admin, {
@@ -285,11 +286,11 @@ export async function updateOrganization(organizationId: string, actorId: string
 export async function listFeatureFlags(supabase: Client, organizationId: string) {
   const { data, error } = await supabase.from("feature_flags").select("*").eq("organization_id", organizationId).order("key");
   if (error) throw error;
-  return data ?? [];
+  return (data ?? []).filter(f => ["ai_interview", "semantic_matching", "career_assistant"].includes(f.key));
 }
 
 export const upsertFeatureFlagSchema = z.object({
-  key: z.string().min(1),
+  key: z.enum(["ai_interview", "semantic_matching", "career_assistant"]),
   enabled: z.boolean(),
   description: z.string().optional(),
 });
@@ -323,7 +324,7 @@ export async function upsertFeatureFlag(supabase: Client, organizationId: string
 
 export async function listAuditLogs(organizationId: string, limit = 100) {
   const admin = createAdminSupabaseClient();
-  const { data, error } = await (admin as any)
+  const { data, error } = await admin
     .from("audit_logs")
     .select("id, action, entity_type, entity_id, actor_label, ip_address, metadata, created_at, profiles:actor_id ( full_name, email )")
     .eq("organization_id", organizationId)
@@ -331,7 +332,7 @@ export async function listAuditLogs(organizationId: string, limit = 100) {
     .limit(limit);
   if (error) throw error;
 
-  return (data ?? []).map((row: any) => {
+  return (data ?? []).map((row) => {
     const actor = Array.isArray(row.profiles) ? row.profiles[0] : row.profiles;
     return {
       id: row.id,
@@ -357,7 +358,7 @@ export async function getAiUsageSummary(supabase: Client, organizationId: string
   since.setDate(since.getDate() - 7);
   since.setHours(0, 0, 0, 0);
 
-  const { data, error } = await (supabase as any)
+  const { data, error } = await supabase
     .from("ai_usage_logs")
     .select("provider, model, operation, prompt_tokens, completion_tokens, created_at")
     .eq("organization_id", organizationId)
@@ -433,13 +434,10 @@ export async function createInterviewTemplate(supabase: Client, organizationId: 
 }
 
 // ---------------------------------------------------------------------------
-// Secrets — demo base64 "encryption". NOT real encryption; documented so a
-// future pass can swap in envelope encryption (e.g. KMS) before production.
-// ---------------------------------------------------------------------------
-
+// Secrets are encrypted at rest with AES-256-GCM.
 function maskSecret(base64Value: string): string {
   try {
-    const raw = Buffer.from(base64Value, "base64").toString("utf8");
+    const raw = decryptSecret(base64Value);
     if (raw.length <= 4) return "••••";
     const visible = raw.slice(-4);
     return `${"•".repeat(Math.max(6, raw.length - 4))}${visible}`;
@@ -459,13 +457,15 @@ export async function listSecrets(supabase: Client, organizationId: string) {
 }
 
 export const upsertSecretSchema = z.object({
-  key: z.string().min(1),
+  key: z.enum(["ai_provider", "ai_chat_model", "ai_embed_model", "ai_api_key"]),
   value: z.string().min(1),
 });
 export type UpsertSecretInput = z.infer<typeof upsertSecretSchema>;
 
 export async function upsertSecret(supabase: Client, organizationId: string, actorId: string, input: UpsertSecretInput) {
-  const encoded = Buffer.from(input.value, "utf8").toString("base64");
+  if(input.key==='ai_provider'&&!['openrouter','groq','together','fireworks','deepinfra'].includes(input.value)) throw new Error('Unsupported AI provider');
+  if(input.key==='ai_embed_model'&&input.value !== (process.env.AI_EMBEDDING_MODEL||'openai/text-embedding-3-small')) throw new Error('Changing the embedding model requires a coordinated vector rebuild. Keep the current deployment model.');
+  const encoded = encryptSecret(input.value);
   const { data, error } = await supabase
     .from("app_secrets")
     .upsert(

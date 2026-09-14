@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import {
   RadarChart,
@@ -56,16 +56,10 @@ import {
 function radarFromScores(match: MatchResult, reasoning?: MatchReasoning | null) {
   const skillsPct = reasoning?.scoreBreakdown.skills
     ?? Math.round((match.matchedSkills.length / Math.max(match.matchedSkills.length + match.missingSkills.length, 1)) * 100);
-  const expPct = reasoning?.scoreBreakdown.experience ?? Math.min(100, Math.round(match.experienceYears * 8 + 20));
-  const eduPct = match.education.length > 0 ? 88 : 55;
-  const certPct = Math.min(100, match.certifications.length * 35 + 40);
-  const culturePct = reasoning?.scoreBreakdown.semantic ?? match.similarity ?? match.confidenceScore;
   return [
-    { subject: "Skills Match", value: skillsPct, fullMark: 100 },
-    { subject: "Experience", value: expPct, fullMark: 100 },
-    { subject: "Education", value: eduPct, fullMark: 100 },
-    { subject: "Certifications", value: certPct, fullMark: 100 },
-    { subject: "Culture Fit", value: culturePct, fullMark: 100 },
+    {subject:'Skills coverage',value:skillsPct,fullMark:100},
+    {subject:'Experience requirement',value:reasoning?.scoreBreakdown.experience ?? match.scoreBreakdown?.experience ?? 0,fullMark:100},
+    {subject:'Semantic similarity',value:reasoning?.scoreBreakdown.semantic ?? match.similarity,fullMark:100},
   ];
 }
 
@@ -75,13 +69,12 @@ export default function AiMatchingPage() {
     () => jobs.filter((j) => j.status === "Open" || j.status === "Draft" || j.status === "On Hold"),
     [jobs]
   );
-  const [jobId, setJobId] = useState<string>("");
+  const [selectedJobId, setJobId] = useState<string>("");
+  const jobId = selectedJobId || openJobs[0]?.id || "";
   const [selected, setSelected] = useState<MatchResult | null>(null);
   const [reasoning, setReasoning] = useState<MatchReasoning | null>(null);
 
-  useEffect(() => {
-    if (!jobId && openJobs[0]) setJobId(openJobs[0].id);
-  }, [openJobs, jobId]);
+
 
   const { data, isLoading: matchesLoading, isFetching, error } = useJobMatchesQuery(jobId || undefined);
   const explainMutation = useExplainMatchMutation();

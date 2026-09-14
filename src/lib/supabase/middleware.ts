@@ -9,6 +9,7 @@ const PUBLIC_PATHS = [
   "/auth/auth-code-error",
   "/candidate/signup",
   "/candidate-signup",
+  "/site.webmanifest",
 ];
 
 function mapPortal(roleName: string | null | undefined, portalRole: string | null | undefined): PortalRole {
@@ -26,6 +27,11 @@ function mapPortal(roleName: string | null | undefined, portalRole: string | nul
  */
 export async function updateSession(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request });
+  const redirectWithCookies = (url: URL) => {
+    const response = NextResponse.redirect(url);
+    supabaseResponse.cookies.getAll().forEach(cookie => response.cookies.set(cookie));
+    return response;
+  };
 
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -55,14 +61,15 @@ export async function updateSession(request: NextRequest) {
   if (!user && (pathname === "/" || pathname === "")) {
     const redirectUrl = request.nextUrl.clone();
     redirectUrl.pathname = "/login";
-    return NextResponse.redirect(redirectUrl);
+    return redirectWithCookies(redirectUrl);
   }
 
   if (!user && !isPublic) {
+    if (pathname.startsWith('/api/')) return NextResponse.json({error:'Not authenticated'},{status:401});
     const redirectUrl = request.nextUrl.clone();
     redirectUrl.pathname = "/login";
     redirectUrl.searchParams.set("redirectTo", pathname);
-    return NextResponse.redirect(redirectUrl);
+    return redirectWithCookies(redirectUrl);
   }
 
   // Legacy flat routes → /hr/*
@@ -92,14 +99,14 @@ export async function updateSession(request: NextRequest) {
     ) {
       const redirectUrl = request.nextUrl.clone();
       redirectUrl.pathname = legacyTarget;
-      return NextResponse.redirect(redirectUrl);
+      return redirectWithCookies(redirectUrl);
     }
   }
 
   if (user && pathname.startsWith("/candidates/")) {
     const redirectUrl = request.nextUrl.clone();
     redirectUrl.pathname = pathname.replace("/candidates/", "/hr/candidates/");
-    return NextResponse.redirect(redirectUrl);
+    return redirectWithCookies(redirectUrl);
   }
 
   // Single profile fetch for login redirect + portal guards
@@ -114,9 +121,14 @@ export async function updateSession(request: NextRequest) {
   if (needsPortal && user) {
     const { data: profile } = await supabase
       .from("profiles")
-      .select("portal_role, roles ( name )")
+      .select("portal_role, status, roles ( name )")
       .eq("id", user.id)
       .maybeSingle();
+    if (!profile || profile.status !== 'active') {
+      await supabase.auth.signOut({scope:'local'});
+      const url=request.nextUrl.clone(); url.pathname='/login'; url.search='?error=account_inactive';
+      return redirectWithCookies(url);
+    }
     const role = Array.isArray(profile?.roles) ? profile?.roles[0] : profile?.roles;
     const portal = mapPortal(role?.name, profile?.portal_role as string | null);
 
@@ -124,7 +136,7 @@ export async function updateSession(request: NextRequest) {
       const redirectUrl = request.nextUrl.clone();
       redirectUrl.pathname = portalHome[portal];
       redirectUrl.search = "";
-      return NextResponse.redirect(redirectUrl);
+      return redirectWithCookies(redirectUrl);
     }
 
     const onAdmin = pathname.startsWith("/admin");
@@ -134,17 +146,17 @@ export async function updateSession(request: NextRequest) {
     if (onAdmin && portal !== "super_admin") {
       const redirectUrl = request.nextUrl.clone();
       redirectUrl.pathname = portalHome[portal];
-      return NextResponse.redirect(redirectUrl);
+      return redirectWithCookies(redirectUrl);
     }
     if (onCandidate && portal !== "candidate" && portal !== "super_admin") {
       const redirectUrl = request.nextUrl.clone();
       redirectUrl.pathname = portalHome[portal];
-      return NextResponse.redirect(redirectUrl);
+      return redirectWithCookies(redirectUrl);
     }
     if (onHr && portal === "candidate") {
       const redirectUrl = request.nextUrl.clone();
       redirectUrl.pathname = portalHome.candidate;
-      return NextResponse.redirect(redirectUrl);
+      return redirectWithCookies(redirectUrl);
     }
   }
 

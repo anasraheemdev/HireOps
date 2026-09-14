@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Building2, Save, Loader2, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/shared/page-header";
@@ -14,17 +14,14 @@ export default function AdminOrganizationPage() {
   const { data: org, isLoading, isError, error, refetch } = useOrganizationQuery();
   const updateOrg = useUpdateOrganizationMutation();
 
-  const [name, setName] = useState("");
-  const [hq, setHq] = useState("");
-  const [email, setEmail] = useState("");
+  const [nameDraft, setName] = useState<string | undefined>();
+  const name = nameDraft ?? org?.name ?? "";
+  const [hqDraft, setHq] = useState<string | undefined>();
+  const hq = hqDraft ?? org?.headquarters ?? "";
+  const [emailDraft, setEmail] = useState<string | undefined>();
+  const email = emailDraft ?? org?.contact_email ?? "";
 
-  useEffect(() => {
-    if (org) {
-      setName(org.name ?? "");
-      setHq(org.headquarters ?? "");
-      setEmail(org.contact_email ?? "");
-    }
-  }, [org]);
+
 
   const handleSave = () => {
     updateOrg.mutate(

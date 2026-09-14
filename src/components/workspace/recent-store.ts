@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useSyncExternalStore } from "react";
+import { useCallback, useSyncExternalStore } from "react";
 
 export type RecentItem = {
   id: string;
@@ -11,13 +11,15 @@ export type RecentItem = {
 };
 
 const KEY = "hireops-recent";
+const EMPTY: RecentItem[] = [];
 
 function read(): RecentItem[] {
-  if (typeof window === "undefined") return [];
+  if (typeof window === "undefined") return EMPTY;
   try {
-    return JSON.parse(localStorage.getItem(KEY) || "[]") as RecentItem[];
+    const value: unknown = JSON.parse(localStorage.getItem(KEY) || "[]");
+    return Array.isArray(value) ? value.filter((item): item is RecentItem => !!item && typeof item.id === 'string' && typeof item.type === 'string' && typeof item.label === 'string' && typeof item.href === 'string' && typeof item.at === 'number') : EMPTY;
   } catch {
-    return [];
+    return EMPTY;
   }
 }
 
@@ -30,13 +32,19 @@ function emit() {
 
 function write(items: RecentItem[]) {
   cache = items.slice(0, 20);
-  localStorage.setItem(KEY, JSON.stringify(cache));
+  try { localStorage.setItem(KEY, JSON.stringify(cache)); } catch { /* Keep in-memory history when storage is unavailable. */ }
   emit();
 }
 
 function subscribe(cb: () => void) {
   listeners.add(cb);
-  return () => listeners.delete(cb);
+  const sync = (event: StorageEvent) => {
+    if (event.key !== KEY && event.key !== null) return;
+    const next = read();
+    if (JSON.stringify(next) !== JSON.stringify(cache)) { cache = next; emit(); }
+  };
+  window.addEventListener('storage', sync);
+  return () => { listeners.delete(cb); window.removeEventListener('storage', sync); };
 }
 
 function getSnapshot() {
@@ -44,16 +52,11 @@ function getSnapshot() {
 }
 
 function getServerSnapshot(): RecentItem[] {
-  return [];
+  return EMPTY;
 }
 
 export function useRecent() {
   const items = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
-
-  useEffect(() => {
-    cache = read();
-    emit();
-  }, []);
 
   const push = useCallback((item: Omit<RecentItem, "at">) => {
     const cur = read().filter((r) => !(r.id === item.id && r.type === item.type));

@@ -7,16 +7,31 @@ import { OpenAICompatibleProvider } from "./providers/openai-compatible";
 export type { AIProvider, ChatMessage } from "./types";
 export { AIProviderError } from "./types";
 
-let cachedProvider: AIProvider | null = null;
+import { cache } from 'react';
+import { createServerSupabaseClient } from '@/lib/supabase/server';
+import { createAdminSupabaseClient } from '@/lib/supabase/admin';
+import { decryptSecret } from './secrets';
+type ProviderConfig = {apiKey?:string;chatModel?:string;embeddingModel?:string};
+const configuration = cache(async () => {
+  const client = await createServerSupabaseClient();
+  const {data:{user}} = await client.auth.getUser();
+  if(!user) throw new Error('Authentication required for AI');
+  const {data:profile} = await client.from('profiles').select('organization_id,status').eq('id',user.id).single();
+  if(!profile?.organization_id || profile.status!=='active') throw new Error('Active organization account required');
+  const {data,error} = await createAdminSupabaseClient().from('app_secrets').select('key,value_encrypted').eq('organization_id',profile.organization_id);
+  if(error) throw error;
+  return Object.fromEntries((data??[]).map(s=>[s.key,decryptSecret(s.value_encrypted)]));
+});
 
-function buildProvider(name: string): AIProvider {
+function buildProvider(name: string, config: ProviderConfig = {}): AIProvider {
   switch (name) {
     case "openrouter":
-      return new OpenRouterProvider();
+      return new OpenRouterProvider(config);
     case "groq":
-      return new GroqProvider();
+      return new GroqProvider(config);
     case "together":
       return new OpenAICompatibleProvider({
+        ...config,
         name: "together",
         baseUrl: "https://api.together.xyz/v1",
         apiKeyEnv: "TOGETHER_API_KEY",
@@ -25,6 +40,7 @@ function buildProvider(name: string): AIProvider {
       });
     case "fireworks":
       return new OpenAICompatibleProvider({
+        ...config,
         name: "fireworks",
         baseUrl: "https://api.fireworks.ai/inference/v1",
         apiKeyEnv: "FIREWORKS_API_KEY",
@@ -33,6 +49,7 @@ function buildProvider(name: string): AIProvider {
       });
     case "deepinfra":
       return new OpenAICompatibleProvider({
+        ...config,
         name: "deepinfra",
         baseUrl: "https://api.deepinfra.com/v1/openai",
         apiKeyEnv: "DEEPINFRA_API_KEY",
@@ -44,21 +61,13 @@ function buildProvider(name: string): AIProvider {
   }
 }
 
-/** Chat + embeddings provider, selected via AI_PROVIDER env var. Cached per server instance. */
-export function getAIProvider(): AIProvider {
-  if (cachedProvider) return cachedProvider;
-  const name = process.env.AI_PROVIDER || "openrouter";
-  cachedProvider = buildProvider(name);
-  return cachedProvider;
+/** Resolve organization settings on each request; never mutate process-wide credentials. */
+export async function getAIProvider(): Promise<AIProvider> {
+  const config = await configuration();
+  return buildProvider(config.ai_provider || process.env.AI_PROVIDER || 'openrouter', {apiKey:config.ai_api_key,chatModel:config.ai_chat_model});
 }
-
-/**
- * Embeddings provider, selected via AI_EMBEDDING_PROVIDER (falls back to
- * AI_PROVIDER). Lets you pair a fast chat-only provider like Groq with an
- * embeddings-capable provider like OpenRouter or Together.
- */
-export function getEmbeddingProvider(): AIProvider {
-  const name = process.env.AI_EMBEDDING_PROVIDER || process.env.AI_PROVIDER || "openrouter";
-  if (name === (process.env.AI_PROVIDER || "openrouter")) return getAIProvider();
-  return buildProvider(name);
+export async function getEmbeddingProvider(): Promise<AIProvider> {
+  const config=await configuration();
+  // Keep embeddings on the configured deployment model to preserve vector compatibility.
+  return buildProvider(process.env.AI_EMBEDDING_PROVIDER || process.env.AI_PROVIDER || 'openrouter', {embeddingModel:config.ai_embed_model});
 }

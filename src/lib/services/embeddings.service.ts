@@ -17,9 +17,7 @@ export function buildCandidateEmbeddingText(input: {
   resumeText?: string | null;
 }): string {
   const parts = [
-    input.fullName,
     input.headline,
-    input.location,
     input.experienceYears != null ? `${input.experienceYears} years experience` : null,
     input.skills?.length ? `Skills: ${input.skills.join(", ")}` : null,
     ...(input.experience ?? []).map(
@@ -30,8 +28,7 @@ export function buildCandidateEmbeddingText(input: {
   ].filter(Boolean) as string[];
 
   const profile = parts.join(". ");
-  const resumeSnippet = input.resumeText?.slice(0, 4000);
-  return resumeSnippet ? `${profile}\n\n${resumeSnippet}` : profile;
+  return profile;
 }
 
 export function buildJobEmbeddingText(input: {
@@ -61,8 +58,9 @@ export async function embedAndStoreCandidate(
   candidateId: string,
   text: string
 ): Promise<void> {
-  const provider = getEmbeddingProvider();
+  const provider = await getEmbeddingProvider();
   const vector = await provider.embed(text.slice(0, 8000));
+  if(vector.length!==1536 || vector.some(v=>!Number.isFinite(v))) throw new Error('Embedding model returned an incompatible vector');
   const embedding = `[${vector.join(",")}]`;
   const { error } = await supabase
     .from("candidates")
@@ -75,8 +73,9 @@ export async function embedAndStoreCandidate(
 }
 
 export async function embedAndStoreJob(supabase: Client, jobId: string, text: string): Promise<void> {
-  const provider = getEmbeddingProvider();
+  const provider = await getEmbeddingProvider();
   const vector = await provider.embed(text.slice(0, 8000));
+  if(vector.length!==1536 || vector.some(v=>!Number.isFinite(v))) throw new Error('Embedding model returned an incompatible vector');
   const embedding = `[${vector.join(",")}]`;
   const { error } = await supabase
     .from("jobs")

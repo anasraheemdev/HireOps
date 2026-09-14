@@ -9,10 +9,12 @@
     "node": ">=20"
   },
   "scripts": {
-    "dev": "next dev",
+    "dev": "next dev --webpack",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "verify:core": "node --import tsx scripts/verify-core.ts && node scripts/verify-workspace-stores.cjs",
+    "verify:readiness": "node scripts/verify-readiness.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.6.0",

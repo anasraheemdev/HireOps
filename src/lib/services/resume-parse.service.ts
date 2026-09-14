@@ -51,7 +51,7 @@ export async function parseResumeBuffer(
     throw new Error("Could not extract enough text from the resume. Try a text-based PDF or DOCX.");
   }
 
-  const provider = getAIProvider();
+  const provider = await getAIProvider();
   const raw = await provider.chatJSON(
     [
       { role: "system", content: PARSE_SYSTEM_PROMPT },

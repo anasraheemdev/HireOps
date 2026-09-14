@@ -1,3 +1,4 @@
+import { requireFeature } from '@/lib/services/feature-access';
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { requirePermission, jsonError, ApiError } from "@/lib/api/helpers";
@@ -13,7 +14,8 @@ const bodySchema = z.object({
 
 export async function POST(request: Request, { params }: Params) {
   try {
-    const { supabase } = await requirePermission("candidates.read");
+    const { supabase, profile } = await requirePermission("candidates.read");
+    await requireFeature(profile.organizationId, "semantic_matching");
     const { id: jobId } = await params;
     const body = bodySchema.safeParse(await request.json());
     if (!body.success) throw new ApiError(400, "candidateId is required");

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { PageHeader } from "@/components/shared/page-header";
 import { ErrorState, PageSkeleton } from "@/components/shared/enterprise-ui";
 import { MotionPage } from "@/components/shared/motion";
@@ -14,29 +14,25 @@ import { toast } from "sonner";
 export default function CandidateProfilePage() {
   const { data, isLoading, isError, error, refetch } = useMeQuery();
   const update = useUpdateMeMutation();
-  const [fullName, setFullName] = useState("");
-  const [phone, setPhone] = useState("");
-  const [headline, setHeadline] = useState("");
-  const [location, setLocation] = useState("");
-  const [nationality, setNationality] = useState("");
-  const [experienceYears, setExperienceYears] = useState("0");
+  const [fullNameDraft, setFullName] = useState<string | undefined>();
+  const fullName = fullNameDraft ?? String(data?.candidate?.full_name ?? data?.profile?.full_name ?? "");
+  const [phoneDraft, setPhone] = useState<string | undefined>();
+  const phone = phoneDraft ?? String(data?.candidate?.phone ?? data?.profile?.phone ?? "");
+  const [headlineDraft, setHeadline] = useState<string | undefined>();
+  const headline = headlineDraft ?? String(data?.candidate?.headline ?? "");
+  const [locationDraft, setLocation] = useState<string | undefined>();
+  const location = locationDraft ?? String(data?.candidate?.location ?? "");
+  const [nationalityDraft, setNationality] = useState<string | undefined>();
+  const nationality = nationalityDraft ?? String(data?.candidate?.nationality ?? "");
+  const [experienceYearsDraft, setExperienceYears] = useState<string | undefined>();
+  const experienceYears = experienceYearsDraft ?? String(data?.candidate?.experience_years ?? 0);
 
   const avatarSrc = useMemo(() => {
     const seed = String(data?.profile?.email ?? data?.candidate?.full_name ?? "candidate");
     return dicebearDataUri(seed, 96);
   }, [data?.profile?.email, data?.candidate?.full_name]);
 
-  useEffect(() => {
-    if (!data) return;
-    const c = data.candidate;
-    const p = data.profile;
-    setFullName(String(c?.full_name ?? p?.full_name ?? ""));
-    setPhone(String(c?.phone ?? p?.phone ?? ""));
-    setHeadline(String(c?.headline ?? ""));
-    setLocation(String(c?.location ?? ""));
-    setNationality(String(c?.nationality ?? ""));
-    setExperienceYears(String(c?.experience_years ?? 0));
-  }, [data]);
+
 
   if (isLoading) return <PageSkeleton rows={5} />;
   if (isError) {

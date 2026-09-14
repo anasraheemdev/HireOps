@@ -40,11 +40,11 @@ export function CommandPalette() {
   const { data: candidates = [] } = useCandidatesQuery({ enabled: showHrData && open });
   const { data: jobs = [] } = useJobsQuery({ enabled: showHrData && open });
   const [query, setQuery] = useState("");
-  const [hits, setHits] = useState<SearchHit[]>([]);
+  const [searchResult, setHits] = useState<SearchHit[]>([]);
+  const hits = open && query.trim().length >= 2 ? searchResult : [];
 
   useEffect(() => {
     if (!open || query.trim().length < 2) {
-      setHits([]);
       return;
     }
     const t = setTimeout(() => {

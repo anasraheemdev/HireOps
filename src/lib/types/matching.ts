@@ -2,6 +2,7 @@ import type { Candidate, Job } from "@/lib/types";
 
 export type MatchResult = Candidate & {
   similarity: number;
+  scoreBreakdown?: {semantic:number;skills:number;experience:number;overall:number};
   matchedSkills: string[];
   missingSkills: string[];
 };

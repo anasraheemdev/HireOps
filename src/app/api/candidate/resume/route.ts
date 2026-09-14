@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireProfile, jsonError, ApiError } from "@/lib/api/helpers";
 import { requireCandidateId } from "@/lib/services/candidate-portal.service";
+import { isSupportedResumeMime } from "@/lib/ai/extract-text";
 
 export async function POST(request: Request) {
   try {
@@ -9,6 +10,9 @@ export async function POST(request: Request) {
     const form = await request.formData();
     const file = form.get("file");
     if (!(file instanceof File)) throw new ApiError(400, "file required");
+    if (!isSupportedResumeMime(file.type, file.name) || !file.size || file.size > 10 * 1024 * 1024) {
+      throw new ApiError(400, "Upload a non-empty PDF or DOCX up to 10 MB.");
+    }
 
     const ext = file.name.split(".").pop() || "pdf";
     const path = `${organizationId}/${candidateId}/${crypto.randomUUID()}.${ext}`;

@@ -35,7 +35,7 @@ You have access to the current live recruitment snapshot:
 Answer the HR user's question concisely and helpfully using this data when relevant. If data isn't available, say so rather than inventing numbers.
 Return ONLY JSON: { "reply": string, "suggestions": string[] }. Keep "reply" under 120 words. "suggestions" should be 0-3 short, relevant follow-up questions the user could ask next.`;
 
-    const provider = getAIProvider();
+    const provider = await getAIProvider();
     const raw = (await provider.chatJSON(
       [
         { role: "system", content: systemPrompt },

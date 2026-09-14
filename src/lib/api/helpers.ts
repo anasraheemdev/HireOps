@@ -24,10 +24,12 @@ export async function requireProfile() {
   const { supabase, user } = await requireUser();
   const profile = await getAuthProfile(supabase, user.id);
   if (!profile) throw new ApiError(403, "Profile not found");
+  if (profile.status !== "active") throw new ApiError(403, "Your account is not active. Contact your administrator.");
   return { supabase, user, profile };
 }
 
 export function profileHasPermission(profile: AuthProfile, code: string) {
+  if (profile.status !== "active") return false;
   if (profile.portalRole === "super_admin" || profile.permissions.includes("portal.admin")) return true;
   return profile.permissions.includes(code);
 }

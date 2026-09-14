@@ -1,134 +1,43 @@
 "use client";
+import { useEffect, useRef, useState } from 'react';
+import { useParams } from 'next/navigation';
+import { useQuery } from '@tanstack/react-query';
+import { Button } from '@/components/ui/button';
+import { apiFetch } from '@/lib/api/fetcher';
+import { toast } from 'sonner';
 
-import { useEffect, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
-import { Loader2 } from "lucide-react";
-import { PageHeader } from "@/components/shared/page-header";
-import { MotionPage } from "@/components/shared/motion";
-import { Button } from "@/components/ui/button";
-import { apiFetch } from "@/lib/api/fetcher";
-import { toast } from "sonner";
-
-type Question = {
-  id: string;
-  prompt: string;
-  question_type: string;
-  options: unknown;
-  points: number;
-};
-
-export default function TakeAssessmentPage() {
-  const { id } = useParams<{ id: string }>();
-  const router = useRouter();
-  const [loading, setLoading] = useState(true);
-  const [questions, setQuestions] = useState<Question[]>([]);
-  const [title, setTitle] = useState("Assessment");
-  const [answers, setAnswers] = useState<Record<string, string>>({});
-  const [submitting, setSubmitting] = useState(false);
-  const [score, setScore] = useState<number | null>(null);
-
-  useEffect(() => {
-    (async () => {
-      try {
-        const data = await apiFetch<{
-          assignment: Record<string, unknown>;
-          assessment: Record<string, unknown>;
-          questions: Question[];
-        }>(`/api/assessments/assignments/${id}`);
-        setQuestions(data.questions ?? []);
-        setTitle(String(data.assessment?.title ?? "Assessment"));
-        if (data.assignment?.score != null) setScore(Number(data.assignment.score));
-      } catch (e) {
-        toast.error(e instanceof Error ? e.message : "Failed to load assessment");
-      } finally {
-        setLoading(false);
-      }
-    })();
-  }, [id]);
-
-  if (loading) {
-    return (
-      <div className="flex justify-center py-20">
-        <Loader2 className="h-6 w-6 animate-spin text-primary" />
-      </div>
-    );
-  }
-
-  return (
-    <MotionPage>
-      <PageHeader title={title} description="Answer all questions, then submit for scoring." />
-      {score != null && (
-        <div className="glass-card p-4 mb-4 text-sm">
-          Completed · Score: <strong>{score}</strong>
-          <Button variant="ghost" className="ml-3 cursor-pointer" onClick={() => router.push("/candidate/assessments")}>
-            Back
-          </Button>
-        </div>
-      )}
-      <form
-        className="space-y-4"
-        onSubmit={async (e) => {
-          e.preventDefault();
-          setSubmitting(true);
-          try {
-            const data = await apiFetch<{ score: number }>(`/api/assessments/assignments/${id}`, {
-              method: "POST",
-              body: JSON.stringify({ answers }),
-            });
-            setScore(data.score);
-            toast.success(`Submitted — score ${data.score}`);
-          } catch (err) {
-            toast.error(err instanceof Error ? err.message : "Submit failed");
-          } finally {
-            setSubmitting(false);
-          }
-        }}
-      >
-        {questions.length === 0 && (
-          <p className="text-sm text-muted-foreground glass-card p-6">
-            No questions configured for this assessment yet. Contact HR.
-          </p>
-        )}
-        {questions.map((q, idx) => {
-          const options = Array.isArray(q.options) ? (q.options as string[]) : [];
-          return (
-            <div key={q.id} className="glass-card p-5 space-y-3">
-              <p className="text-sm font-medium">
-                {idx + 1}. {q.prompt}
-              </p>
-              {q.question_type === "multiple_choice" && options.length > 0 ? (
-                <div className="space-y-2">
-                  {options.map((opt) => (
-                    <label key={opt} className="flex items-center gap-2 text-sm cursor-pointer">
-                      <input
-                        type="radio"
-                        name={q.id}
-                        value={opt}
-                        checked={answers[q.id] === opt}
-                        disabled={score != null}
-                        onChange={() => setAnswers((a) => ({ ...a, [q.id]: opt }))}
-                      />
-                      {opt}
-                    </label>
-                  ))}
-                </div>
-              ) : (
-                <textarea
-                  className="w-full min-h-[100px] rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm"
-                  value={answers[q.id] ?? ""}
-                  disabled={score != null}
-                  onChange={(e) => setAnswers((a) => ({ ...a, [q.id]: e.target.value }))}
-                />
-              )}
-            </div>
-          );
-        })}
-        {score == null && questions.length > 0 && (
-          <Button type="submit" className="gradient-brand text-white cursor-pointer" disabled={submitting}>
-            {submitting ? "Submitting…" : "Submit assessment"}
-          </Button>
-        )}
-      </form>
-    </MotionPage>
-  );
+type Question={id:string;prompt:string;question_type:string;options:unknown;points:number};
+type Exam={assignment:{status:string;score:number|null;started_at:string|null};assessment:{title:string;description:string|null;duration_minutes:number};questions:Question[]};
+export default function TakeAssessmentPage(){
+ const {id}=useParams<{id:string}>();
+ const url=`/api/assessments/assignments/${id}`;
+ const query=useQuery({queryKey:['exam',id],queryFn:()=>apiFetch<Exam>(url),refetchOnWindowFocus:true});
+ const [answers,setAnswers]=useState<Record<string,string>>({}),[busy,setBusy]=useState(false),[now,setNow]=useState(()=>Date.now());
+ const autoSubmitted=useRef(false);
+ const data=query.data;
+ const deadline=data?.assignment.started_at?new Date(data.assignment.started_at).getTime()+(data.assessment.duration_minutes*60000):null;
+ const remaining=deadline?Math.max(0,Math.ceil((deadline-now)/1000)):null;
+ const completed=data?.assignment.status==='completed';
+ async function submit(){
+  if(busy||completed)return;
+  setBusy(true);
+  try{const result=await apiFetch<{score:number}>(url,{method:'POST',body:JSON.stringify({action:'submit',answers})});toast.success(`Assessment submitted: ${result.score}%`);await query.refetch();}
+  catch(e){toast.error(e instanceof Error?e.message:'Submission failed');await query.refetch();}
+  finally{setBusy(false);}
+ }
+ useEffect(()=>{const timer=setInterval(()=>setNow(Date.now()),1000);return()=>clearInterval(timer);},[]);
+ useEffect(()=>{
+  if(remaining===0&&!completed&&data?.assignment.status==='in_progress'&&!autoSubmitted.current){autoSubmitted.current=true;void submit();}
+  // Submit the latest answers once when the server-defined time limit expires.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+ },[remaining,completed]);
+ if(query.isLoading)return <p className="glass-card p-6">Loading exam…</p>;
+ if(query.isError)return <div className="glass-card p-6" role="alert">{query.error.message}<Button onClick={()=>query.refetch()}>Retry</Button></div>;
+ if(!data)return null;
+ return <div className="max-w-3xl space-y-5"><h1 className="text-xl font-semibold">{data.assessment.title}</h1><p className="text-sm text-muted-foreground">{data.assessment.description}</p>
+ {completed?<div className="glass-card p-6"><h2 className="font-semibold">Exam completed</h2><p className="text-3xl mt-3">{data.assignment.score}%</p><p className="text-sm mt-2">Your result has been saved for HR review.</p></div>:!data.assignment.started_at?<div className="glass-card p-6 space-y-4"><p>You have {data.assessment.duration_minutes} minutes. The timer starts when you begin and continues if you leave this page. Submit all answers before the time limit.</p><Button disabled={busy} onClick={async()=>{setBusy(true);try{await apiFetch(url,{method:'POST',body:JSON.stringify({action:'start'})});await query.refetch();}catch(e){toast.error(e instanceof Error?e.message:'Could not start');}finally{setBusy(false);}}}>Start exam</Button></div>:<form className="space-y-4" onSubmit={e=>{e.preventDefault();void submit();}}>
+ <div className="sticky top-0 glass-card p-4 z-10 flex justify-between"><span>Time remaining</span><strong role="timer">{Math.floor((remaining??0)/60)}:{String((remaining??0)%60).padStart(2,'0')}</strong></div>
+ {data.questions.map((q,i)=><fieldset key={q.id} disabled={busy||remaining===0} className="glass-card p-5 space-y-3"><legend className="text-sm font-medium px-2">{i+1}. {q.prompt} ({q.points} points)</legend>{q.question_type==='multiple_choice'&&Array.isArray(q.options)?(q.options as string[]).map(opt=><label key={opt} className="flex items-center gap-3 text-sm"><input type="radio" name={q.id} checked={answers[q.id]===opt} onChange={()=>setAnswers(a=>({...a,[q.id]:opt}))}/>{opt}</label>):<textarea aria-label={`Answer to question ${i+1}`} maxLength={12000} rows={5} className="w-full bg-background border rounded-lg p-3" value={answers[q.id]??''} onChange={e=>setAnswers(a=>({...a,[q.id]:e.target.value}))}/>}</fieldset>)}
+ <Button disabled={busy||!data.questions.length}>{busy?'Scoring submission…':data.assignment.status==='grading_failed'?'Retry grading saved answers':'Submit answers'}</Button><p className="text-xs text-muted-foreground">Unanswered questions receive zero points. Written answers are evaluated against the author’s rubric.</p>
+ </form>}</div>;
 }

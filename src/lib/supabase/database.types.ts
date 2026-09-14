@@ -286,6 +286,8 @@ export interface Database {
       };
       assessment_assignments: {
         Row: {
+          answers: Record<string, string>;
+          grading_details: Record<string, unknown>;
           id: string;
           assessment_id: string;
           application_id: string;
