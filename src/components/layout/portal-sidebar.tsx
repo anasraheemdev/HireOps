@@ -51,7 +51,10 @@ export function PortalSidebar({ portal }: { portal: PortalRole }) {
               </p>
               <ul className="space-y-0.5">
                 {group.items.map((item) => {
-                  const active = pathname === item.href || pathname.startsWith(item.href + "/");
+                  const active =
+                    item.href === "/candidate" || item.href === "/admin" || item.href === "/hr" || item.href === "/dashboard"
+                      ? pathname === item.href
+                      : pathname === item.href || pathname.startsWith(item.href + "/");
                   const Icon = item.icon;
                   return (
                     <li key={item.href}>

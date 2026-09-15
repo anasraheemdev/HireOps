@@ -10,6 +10,15 @@ const admin=createClient(url,process.env.SUPABASE_SERVICE_ROLE_KEY,{auth:{persis
 const stamp=Date.now(); const created={users:[],candidates:[],jobs:[],assessments:[],resumePaths:[]};
 let assertions=0;
 function check(condition,label){assert.ok(condition,label);assertions++;console.log('PASS '+label);}
+async function checkServer() {
+  try {
+    await fetch(base, { method: "HEAD", signal: AbortSignal.timeout(3000) });
+  } catch (_err) {
+    console.error(`\n[Verification Warning] Target server at ${base} is not running or not responding.`);
+    console.error(`Please launch the dev server first ('npm run dev') or pass target URL: node scripts/verify-readiness.mjs <url>\n`);
+    process.exit(1);
+  }
+}
 async function api(cookie,path,method='GET',body){
  const res=await fetch(base+path,{method,headers:{Cookie:cookie,...(body instanceof FormData?{}:{'Content-Type':'application/json'})},body:body===undefined?undefined:body instanceof FormData?body:JSON.stringify(body),redirect:'manual'});
  const json=await res.json().catch(()=>({}));return {status:res.status,data:json.data,error:json.error};
@@ -30,6 +39,7 @@ async function account(role,candidateId=null){
  return {cookie,client,id:data.user.id,org:r.organization_id};
 }
 try{
+ await checkServer();
  const hr=await account('Super Admin');
  const {data:departments}=await admin.from('departments').select('name').eq('organization_id',hr.org).limit(1);
  const job=await api(hr.cookie,'/api/jobs','POST',{title:`Readiness Software Engineer ${stamp}`,department:departments[0]?.name||'Engineering',location:'Muscat, Oman',type:'Full-time',level:'Senior',minExperience:5,description:'Develop reliable JavaScript and React applications backed by PostgreSQL. Design APIs, test software and review code.',requiredSkills:'JavaScript, React, PostgreSQL'});

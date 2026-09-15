@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { Plus, Copy, Loader2, AlertTriangle } from "lucide-react";
-import { useForm } from "react-hook-form";
+import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { toast } from "sonner";
@@ -44,12 +44,13 @@ function NewPromptDialog() {
     handleSubmit,
     reset,
     setValue,
-    watch,
+    control,
     formState: { errors },
   } = useForm<PromptFormValues>({
     resolver: zodResolver(promptSchema),
     defaultValues: { name: "", mode: "behavioral", systemPrompt: "" },
   });
+  const mode = useWatch({ control, name: "mode" });
 
   const onSubmit = (values: PromptFormValues) => {
     create.mutate(values, {
@@ -81,7 +82,7 @@ function NewPromptDialog() {
           <div className="space-y-1.5">
             <Label>Category / mode</Label>
             <LabeledSelect
-              value={watch("mode")}
+              value={mode}
               onValueChange={(v) => setValue("mode", v)}
               options={modes.map((m) => ({ value: m, label: m[0].toUpperCase() + m.slice(1) }))}
             />

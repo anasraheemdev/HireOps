@@ -1,8 +1,8 @@
-﻿"use client";
+"use client";
 
 import { useState } from "react";
 import { Plus, MoreVertical, Loader2, AlertTriangle, Copy } from "lucide-react";
-import { useForm } from "react-hook-form";
+import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { toast } from "sonner";
@@ -86,12 +86,14 @@ function InviteUserDialog() {
     handleSubmit,
     reset,
     setValue,
-    watch,
+    control,
     formState: { errors },
   } = useForm<InviteFormValues>({
     resolver: zodResolver(inviteSchema),
     defaultValues: { email: "", fullName: "", portalRole: "hr", roleId: "" },
   });
+  const portalRoleValue = useWatch({ control, name: "portalRole" });
+  const roleIdValue = useWatch({ control, name: "roleId" });
 
   const onSubmit = (values: InviteFormValues) => {
     invite.mutate(
@@ -184,7 +186,7 @@ function InviteUserDialog() {
               <div className="space-y-1.5">
                 <Label>Portal</Label>
                 <LabeledSelect
-                  value={watch("portalRole")}
+                  value={portalRoleValue}
                   onValueChange={(v) => setValue("portalRole", v as InviteFormValues["portalRole"])}
                   options={[
                     { value: "super_admin", label: "Admin" },
@@ -196,7 +198,7 @@ function InviteUserDialog() {
               <div className="space-y-1.5">
                 <Label>Role</Label>
                 <LabeledSelect
-                  value={watch("roleId")}
+                  value={roleIdValue}
                   onValueChange={(v) => setValue("roleId", v)}
                   placeholder="No role"
                   options={(rolesData?.roles ?? []).map((r) => ({ value: r.id, label: r.name }))}

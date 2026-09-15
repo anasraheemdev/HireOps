@@ -175,7 +175,8 @@ export function WorkspaceSidebar({ portal }: { portal: PortalRole }) {
               )}
               <ul className="space-y-0.5">
                 {group.items.map((item) => {
-                  const active = pathname === item.href || pathname.startsWith(item.href + "/");
+                  const isRoot = item.href === "/candidate" || item.href === "/admin" || item.href === "/hr" || item.href === "/dashboard";
+                  const active = isRoot ? pathname === item.href : pathname === item.href || pathname.startsWith(item.href + "/");
                   const Icon = item.icon;
                   return (
                     <li key={item.href}>

@@ -289,6 +289,7 @@ function CandidatesWorkspace() {
   const [selectedRows, setSelectedRows] = useState<Candidate[]>([]);
 
   const { data: candidates, isLoading, isError, error, refetch } = useCandidatesQuery();
+  const decision = useApplicationDecisionMutation();
 
   const departments = useMemo(
     () => ["All Departments", ...Array.from(new Set((candidates ?? []).map((c) => c.department)))],
@@ -435,14 +436,34 @@ function CandidatesWorkspace() {
           onSelectionChange={setSelectedRows}
           emptyMessage="No candidates match filters"
           bulkActions={
-            <Button
-              size="sm"
-              variant="outline"
-              className="h-6 text-[10px] cursor-pointer"
-              onClick={() => toast.message(`Bulk action for ${selectedRows.length} candidates (coming soon)`)}
-            >
-              Change stage
-            </Button>
+            <div className="flex items-center gap-1.5">
+              <Select
+                onValueChange={(stageVal) => {
+                  if (!stageVal || !selectedRows.length) return;
+                  let count = 0;
+                  const isShortlist = stageVal === "Shortlist";
+                  const isReject = stageVal === "Reject";
+                  selectedRows.forEach((cand) => {
+                    if (cand.applicationId) {
+                      decision.mutate({
+                        applicationId: cand.applicationId,
+                        decision: isReject ? "reject" : "shortlist",
+                      });
+                      count++;
+                    }
+                  });
+                  toast.success(`Updated ${count} selected candidates`);
+                }}
+              >
+                <SelectTrigger className="h-6 text-[10px] w-[130px] bg-white/10 border-white/20">
+                  <SelectValue placeholder="Batch decision…" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Shortlist">Shortlist selected</SelectItem>
+                  <SelectItem value="Reject">Reject selected</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           }
           toolbar={
             <>

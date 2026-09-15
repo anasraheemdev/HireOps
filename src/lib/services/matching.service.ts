@@ -11,7 +11,7 @@ import {
   buildCandidateEmbeddingText,
 } from "@/lib/services/embeddings.service";
 import { calculateMatch, skillOverlap } from "@/lib/scoring";
-import type { Candidate, Job } from "@/lib/types";
+import type { Job } from "@/lib/types";
 import type { MatchReasoning, MatchResult } from "@/lib/types/matching";
 
 export type { MatchReasoning, MatchResult };

@@ -6,7 +6,6 @@ import { PageHeader } from "@/components/shared/page-header";
 import { EmptyState, ErrorState, PageSkeleton } from "@/components/shared/enterprise-ui";
 import { MotionPage, MotionList, MotionItem } from "@/components/shared/motion";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { useMyAssessmentsQuery } from "@/lib/queries/use-candidate-portal";
 
 export default function CandidateAssessmentsPage() {

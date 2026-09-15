@@ -11,7 +11,6 @@ import {
   LineChart,
   Settings,
   ShieldCheck,
-  Rocket,
   Building2,
   KeyRound,
   Activity,

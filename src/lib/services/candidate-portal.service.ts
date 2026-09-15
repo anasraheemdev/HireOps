@@ -8,11 +8,47 @@ import { getAIProvider } from "@/lib/ai";
 type Client = SupabaseClient<Database>;
 
 export async function requireCandidateId(
-  profile: { candidateId: string | null; organizationId: string | null }
+  profile: { id: string; email: string; fullName: string | null; candidateId: string | null; organizationId: string | null }
 ): Promise<{ candidateId: string; organizationId: string }> {
-  if (!profile.candidateId) throw new Error("No candidate profile linked to this account");
-  if (!profile.organizationId) throw new Error("No organization assigned");
-  return { candidateId: profile.candidateId, organizationId: profile.organizationId };
+  let orgId = profile.organizationId;
+  let candidateId = profile.candidateId;
+
+  const admin = createAdminSupabaseClient();
+  if (!orgId) {
+    const { data: defaultOrg } = await admin.from("organizations").select("id").order("created_at", { ascending: true }).limit(1).maybeSingle();
+    if (!defaultOrg) throw new ApiError(400, "No organization configured");
+    orgId = defaultOrg.id;
+  }
+
+  if (!candidateId) {
+    const { data: existing } = await admin
+      .from("candidates")
+      .select("id")
+      .eq("organization_id", orgId)
+      .eq("email", profile.email)
+      .maybeSingle();
+
+    if (existing) {
+      candidateId = existing.id;
+    } else {
+      const { data: newCand, error: candErr } = await admin
+        .from("candidates")
+        .insert({
+          organization_id: orgId,
+          full_name: profile.fullName || profile.email.split("@")[0],
+          email: profile.email,
+          source: "portal_auto_link",
+        })
+        .select("id")
+        .single();
+      if (candErr) throw new ApiError(500, `Could not create candidate profile: ${candErr.message}`);
+      candidateId = newCand.id;
+    }
+
+    await admin.from("profiles").update({ candidate_id: candidateId, organization_id: orgId }).eq("id", profile.id);
+  }
+
+  return { candidateId, organizationId: orgId };
 }
 
 export async function listMyApplications(supabase: Client, candidateId: string) {
