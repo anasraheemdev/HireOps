@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -101,7 +101,11 @@ export function InterviewSessionView({
         { event: "INSERT", schema: "public", table: "interview_messages", filter: `session_id=eq.${sessionId}` },
         (payload) => {
           const row = payload.new as Msg;
-          setMessages((prev) => (prev.some((m) => m.id === row.id) ? prev : [...prev, row]));
+          setMessages((prev) =>
+            prev.some((m) => m.id === row.id || (m.role === row.role && m.content === row.content))
+              ? prev
+              : [...prev, row]
+          );
         }
       )
       .subscribe();
@@ -294,9 +298,9 @@ export function InterviewSessionView({
       <div className="grid grid-cols-1 xl:grid-cols-[1fr_300px] gap-5">
         <div className="glass-card flex flex-col min-h-[520px]">
           <div className="flex-1 overflow-y-auto p-4 space-y-3">
-            {messages.map((m) => (
+            {messages.map((m, idx) => (
               <motion.div
-                key={m.id}
+                key={m.id ? `${m.id}-${idx}` : `msg-${idx}-${m.role}`}
                 initial={{ opacity: 0, y: 8 }}
                 animate={{ opacity: 1, y: 0 }}
                 className={cn(
@@ -315,27 +319,64 @@ export function InterviewSessionView({
             )}
             <div ref={bottomRef} />
           </div>
-          <form
-            className="p-3 border-t border-white/5 flex gap-2"
-            onSubmit={(e) => {
-              e.preventDefault();
-              void sendStream(input);
-            }}
-          >
-            <Button type="button" variant="outline" size="icon" className={cn("cursor-pointer", listening && "border-primary text-primary")} onClick={toggleMic}>
-              {listening ? <AudioLines className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
-            </Button>
-            <input
-              className="flex-1 rounded-lg border border-white/10 bg-white/5 px-3 text-sm"
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              placeholder="Type or dictate your answer…"
-              disabled={session?.status === "completed"}
-            />
-            <Button type="submit" size="icon" className="gradient-brand text-white cursor-pointer" disabled={thinking || session?.status === "completed"}>
-              <Send className="h-4 w-4" />
-            </Button>
-          </form>
+
+          {isCandidatePortal ? (
+            /* CANDIDATE VOICE-ONLY CONTROL BAR */
+            <div className="p-4 border-t border-white/5 bg-white/[0.02] flex flex-col sm:flex-row items-center justify-between gap-3">
+              <div className="flex items-center gap-2 text-xs text-muted-foreground w-full sm:w-auto">
+                <Button
+                  type="button"
+                  variant={listening ? "default" : "outline"}
+                  size="sm"
+                  className={cn(
+                    "cursor-pointer rounded-full h-10 px-4 gap-2",
+                    listening && "bg-rose-600 text-white animate-pulse"
+                  )}
+                  onClick={toggleMic}
+                  disabled={session?.status === "completed"}
+                >
+                  {listening ? <AudioLines className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
+                  <span>{listening ? "Listening to Voice..." : "Speak Response"}</span>
+                </Button>
+                {listening && <span className="text-[11px] text-emerald-400 font-medium">Recording mic...</span>}
+              </div>
+
+              <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+                <Button
+                  type="button"
+                  size="sm"
+                  className="gradient-brand text-white cursor-pointer gap-2"
+                  disabled={thinking || !input.trim() || session?.status === "completed"}
+                  onClick={() => void sendStream(input)}
+                >
+                  <Send className="h-3.5 w-3.5" /> Send Voice Answer
+                </Button>
+              </div>
+            </div>
+          ) : (
+            /* HR & ADMIN TEXT & SPEECH INPUT BAR */
+            <form
+              className="p-3 border-t border-white/5 flex gap-2"
+              onSubmit={(e) => {
+                e.preventDefault();
+                void sendStream(input);
+              }}
+            >
+              <Button type="button" variant="outline" size="icon" className={cn("cursor-pointer", listening && "border-primary text-primary")} onClick={toggleMic}>
+                {listening ? <AudioLines className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
+              </Button>
+              <input
+                className="flex-1 rounded-lg border border-white/10 bg-white/5 px-3 text-sm"
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                placeholder="Type or dictate your answer…"
+                disabled={session?.status === "completed"}
+              />
+              <Button type="submit" size="icon" className="gradient-brand text-white cursor-pointer" disabled={thinking || session?.status === "completed"}>
+                <Send className="h-4 w-4" />
+              </Button>
+            </form>
+          )}
         </div>
 
         <div className="space-y-4">
@@ -349,45 +390,60 @@ export function InterviewSessionView({
               />
             </div>
           )}
-          <div className="glass-card p-4">
-            <p className="text-xs font-semibold mb-3 flex items-center gap-1.5">
-              <Sparkles className="h-3.5 w-3.5 text-primary" /> Evaluation
-            </p>
-            {Object.keys(scores).length === 0 ? (
-              <p className="text-xs text-muted-foreground">Scores appear after you end the interview.</p>
-            ) : (
-              <div className="space-y-2">
-                {Object.entries(scores).filter(([, v]) => typeof v === "number" && Number.isFinite(v)).map(([k, v]) => (
-                  <MetricBar key={k} label={k} value={Number(v)} />
-                ))}
-              </div>
-            )}
-            {evaluation && (
-              <div className="mt-3 space-y-2 text-xs">
-                <p>
-                  <span className="text-muted-foreground">Recommendation:</span>{" "}
-                  <strong className="capitalize">{String(evaluation.recommendation ?? "")}</strong>
-                </p>
-                <p className="text-muted-foreground whitespace-pre-wrap">{String(evaluation.summary ?? "")}</p>
-                {Array.isArray(evaluation.strengths) && (
+
+          {/* EVALUATION SECTION (HR ONLY) */}
+          {!isCandidatePortal && (
+            <div className="glass-card p-4">
+              <p className="text-xs font-semibold mb-3 flex items-center gap-1.5">
+                <Sparkles className="h-3.5 w-3.5 text-primary" /> Evaluation
+              </p>
+              {Object.keys(scores).length === 0 ? (
+                <p className="text-xs text-muted-foreground">Scores appear after you end the interview.</p>
+              ) : (
+                <div className="space-y-2">
+                  {Object.entries(scores).filter(([, v]) => typeof v === "number" && Number.isFinite(v)).map(([k, v]) => (
+                    <MetricBar key={k} label={k} value={Number(v)} />
+                  ))}
+                </div>
+              )}
+              {evaluation && (
+                <div className="mt-3 space-y-2 text-xs">
                   <p>
-                    <strong>Strengths:</strong> {(evaluation.strengths as string[]).join("; ")}
+                    <span className="text-muted-foreground">Recommendation:</span>{" "}
+                    <strong className="capitalize">{String(evaluation.recommendation ?? "")}</strong>
                   </p>
-                )}
-                {Array.isArray(evaluation.risks) && (
-                  <p>
-                    <strong>Risks:</strong> {(evaluation.risks as string[]).join("; ")}
-                  </p>
-                )}
-              </div>
-            )}
-          </div>
+                  <p className="text-muted-foreground whitespace-pre-wrap">{String(evaluation.summary ?? "")}</p>
+                  {Array.isArray(evaluation.strengths) && (
+                    <p>
+                      <strong>Strengths:</strong> {(evaluation.strengths as string[]).join("; ")}
+                    </p>
+                  )}
+                  {Array.isArray(evaluation.risks) && (
+                    <p>
+                      <strong>Risks:</strong> {(evaluation.risks as string[]).join("; ")}
+                    </p>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
+          {isCandidatePortal && (
+            <div className="glass-card p-4">
+              <p className="text-xs font-semibold mb-1 flex items-center gap-1.5 text-emerald-400">
+                <Sparkles className="h-3.5 w-3.5" /> Session Status
+              </p>
+              <p className="text-xs text-muted-foreground">
+                Your responses are securely recorded and will be evaluated by the HR team after session completion.
+              </p>
+            </div>
+          )}
 
           <div className="glass-card p-4">
             <p className="text-xs font-semibold mb-2">Question history</p>
             <ul className="space-y-2 max-h-48 overflow-auto">
               {questions.map((q, i) => (
-                <li key={q.id} className="text-[11px] text-muted-foreground border-b border-white/5 pb-2">
+                <li key={q.id ? `${q.id}-${i}` : `qhist-${i}`} className="text-[11px] text-muted-foreground border-b border-white/5 pb-2">
                   <span className="text-foreground font-medium">Q{i + 1}.</span> {q.content.slice(0, 120)}
                   {q.content.length > 120 ? "…" : ""}
                 </li>

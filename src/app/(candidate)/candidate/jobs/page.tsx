@@ -1,24 +1,85 @@
 "use client";
 
-import { MapPin, Briefcase, Bookmark } from "lucide-react";
+import { useRef, useState } from "react";
+import { useRouter } from "next/navigation";
+import { MapPin, Briefcase, Bookmark, UploadCloud, FileText, Loader2, Sparkles, CheckCircle2, ArrowRight } from "lucide-react";
 import { PageHeader } from "@/components/shared/page-header";
 import { EmptyState, ErrorState, PageSkeleton } from "@/components/shared/enterprise-ui";
 import { MotionPage, MotionList, MotionItem } from "@/components/shared/motion";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { useJobsQuery } from "@/lib/queries/use-jobs";
-import { useApplyMutation, useSaveJobMutation } from "@/lib/queries/use-candidate-portal";
+import { useSaveJobMutation } from "@/lib/queries/use-candidate-portal";
+import { useQueryClient } from "@tanstack/react-query";
+import type { Job } from "@/lib/types";
 import { toast } from "sonner";
+import { CandidateApplicationWizard } from "@/components/candidate/candidate-application-wizard";
 
 export default function CandidateJobsPage() {
+  const router = useRouter();
+  const queryClient = useQueryClient();
   const { data: jobs = [], isLoading, isError, error, refetch } = useJobsQuery();
-  const apply = useApplyMutation();
   const save = useSaveJobMutation();
   const openJobs = jobs.filter((j) => j.status === "Open");
 
+  const [applyingJob, setApplyingJob] = useState<Job | null>(null);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [submittedResult, setSubmittedResult] = useState<{
+    jobTitle: string;
+    stage: string;
+    assessmentTitle?: string;
+  } | null>(null);
+
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleApplySubmit = async () => {
+    if (!applyingJob) return;
+    setSubmitting(true);
+    try {
+      const form = new FormData();
+      form.append("jobId", applyingJob.id);
+      if (selectedFile) {
+        form.append("file", selectedFile);
+      }
+
+      const res = await fetch("/api/candidate/applications/apply", {
+        method: "POST",
+        body: selectedFile ? form : JSON.stringify({ jobId: applyingJob.id }),
+        headers: selectedFile ? undefined : { "Content-Type": "application/json" },
+      });
+
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || "Application submission failed");
+
+      toast.success(`Application for "${applyingJob.title}" submitted successfully!`);
+      queryClient.invalidateQueries({ queryKey: ["my-applications"] });
+      queryClient.invalidateQueries({ queryKey: ["my-assessments"] });
+      queryClient.invalidateQueries({ queryKey: ["my-interviews"] });
+      queryClient.invalidateQueries({ queryKey: ["me"] });
+
+      setSubmittedResult({
+        jobTitle: applyingJob.title,
+        stage: json.data?.stage || "applied",
+        assessmentTitle: json.data?.assessment?.title,
+      });
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Application failed");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const closeModal = () => {
+    setApplyingJob(null);
+    setSelectedFile(null);
+    setSubmittedResult(null);
+  };
+
   return (
     <MotionPage className="space-y-3 max-w-[1200px]">
-      <PageHeader title="Open roles" description="Browse positions and apply in one click." />
+      <PageHeader title="Open roles" description="Browse available positions, upload your CV, and apply." />
 
       {isLoading && <PageSkeleton rows={4} />}
       {isError && (
@@ -64,18 +125,10 @@ export default function CandidateJobsPage() {
                 <div className="flex gap-1.5 shrink-0">
                   <Button
                     size="sm"
-                    className="h-8 text-[12px] gradient-brand text-white cursor-pointer px-3"
-                    disabled={apply.isPending}
-                    onClick={async () => {
-                      try {
-                        const res = (await apply.mutateAsync(job.id)) as { alreadyApplied?: boolean };
-                        toast.success(res?.alreadyApplied ? "Already applied" : `Applied to “${job.title}”`);
-                      } catch (e) {
-                        toast.error(e instanceof Error ? e.message : "Apply failed");
-                      }
-                    }}
+                    className="h-8 text-[12px] gradient-brand text-white cursor-pointer px-3 gap-1.5"
+                    onClick={() => setApplyingJob(job)}
                   >
-                    Apply
+                    <Sparkles className="h-3.5 w-3.5" /> Apply
                   </Button>
                   <Button
                     variant="outline"
@@ -99,6 +152,28 @@ export default function CandidateJobsPage() {
           ))}
         </MotionList>
       )}
+
+      {/* Automated Stepper Application Modal */}
+      <Dialog open={!!applyingJob} onOpenChange={(open) => !open && setApplyingJob(null)}>
+        <DialogContent className="sm:max-w-2xl glass-card border-white/15 max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="text-lg font-semibold flex items-center gap-2">
+              <Briefcase className="h-5 w-5 text-primary" /> Application Stepper: {applyingJob?.title}
+            </DialogTitle>
+            <DialogDescription className="text-xs text-muted-foreground">
+              {applyingJob?.department} · {applyingJob?.location}
+            </DialogDescription>
+          </DialogHeader>
+
+          {applyingJob && (
+            <CandidateApplicationWizard
+              job={applyingJob}
+              onClose={() => setApplyingJob(null)}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
     </MotionPage>
   );
 }
+

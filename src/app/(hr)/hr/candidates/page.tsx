@@ -16,9 +16,13 @@ import {
   Sparkles,
   Mail,
   Briefcase,
+  Plus,
+  Loader2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
   Select,
@@ -36,6 +40,8 @@ import { DataTable } from "@/components/workspace/data-table";
 import { useFavorites } from "@/components/workspace/favorites-store";
 import { useRecent } from "@/components/workspace/recent-store";
 import { useCandidatesQuery, useCandidateQuery, useApplicationDecisionMutation } from "@/lib/queries/use-candidates";
+import { useCreateCandidateMutation } from "@/lib/queries/use-ai";
+import { useJobsQuery } from "@/lib/queries/use-jobs";
 import type { Candidate, PipelineStage } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -289,7 +295,50 @@ function CandidatesWorkspace() {
   const [selectedRows, setSelectedRows] = useState<Candidate[]>([]);
 
   const { data: candidates, isLoading, isError, error, refetch } = useCandidatesQuery();
+  const { data: openJobsData = [] } = useJobsQuery();
   const decision = useApplicationDecisionMutation();
+  const createCandidateMutation = useCreateCandidateMutation();
+
+  const [addModalOpen, setAddModalOpen] = useState(false);
+  const [fullName, setFullName] = useState("");
+  const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
+  const [headline, setHeadline] = useState("");
+  const [location, setLocation] = useState("Muscat, Oman");
+  const [expYears, setExpYears] = useState(2);
+  const [jobId, setJobId] = useState("");
+  const [skills, setSkills] = useState("");
+
+  const handleAddCandidateSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!fullName.trim() || !email.trim()) {
+      toast.error("Name and email are required");
+      return;
+    }
+    try {
+      await createCandidateMutation.mutateAsync({
+        fullName: fullName.trim(),
+        email: email.trim(),
+        phone: phone || null,
+        headline: headline || null,
+        location: location || null,
+        experienceYears: Number(expYears) || 0,
+        skills: skills.split(",").map((s) => s.trim()).filter(Boolean),
+        jobId: jobId || null,
+        source: "manual_hr_add",
+      });
+      toast.success(`Candidate "${fullName}" added to pipeline`);
+      setAddModalOpen(false);
+      setFullName("");
+      setEmail("");
+      setPhone("");
+      setHeadline("");
+      setSkills("");
+      setJobId("");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to add candidate");
+    }
+  };
 
   const departments = useMemo(
     () => ["All Departments", ...Array.from(new Set((candidates ?? []).map((c) => c.department)))],
@@ -402,6 +451,13 @@ function CandidatesWorkspace() {
           </p>
         </div>
         <div className="flex gap-1">
+          <Button
+            size="sm"
+            className="h-7 text-[11px] gap-1 cursor-pointer gradient-brand text-white"
+            onClick={() => setAddModalOpen(true)}
+          >
+            <Plus className="h-3 w-3" /> Candidate
+          </Button>
           <Link href="/hr/cv-parsing">
             <Button variant="outline" size="sm" className="h-7 text-[11px] gap-1 cursor-pointer">
               <Upload className="h-3 w-3" /> CV
@@ -409,6 +465,144 @@ function CandidatesWorkspace() {
           </Link>
         </div>
       </div>
+
+      {/* Add Candidate Modal Form */}
+      <Dialog open={addModalOpen} onOpenChange={setAddModalOpen}>
+        <DialogContent className="sm:max-w-md glass-card border-white/15">
+          <DialogHeader>
+            <DialogTitle className="text-lg font-semibold flex items-center gap-2">
+              <Users className="h-5 w-5 text-primary" /> Add New Candidate
+            </DialogTitle>
+            <DialogDescription className="text-xs text-muted-foreground">
+              Manually add a candidate to your organization pool and assign a role.
+            </DialogDescription>
+          </DialogHeader>
+
+          <form onSubmit={handleAddCandidateSubmit} className="space-y-3.5 py-2">
+            <div className="space-y-1">
+              <Label className="text-xs">Full Name *</Label>
+              <Input
+                required
+                value={fullName}
+                onChange={(e) => setFullName(e.target.value)}
+                placeholder="e.g. Salim Al-Rawahi"
+                className="bg-white/5 border-white/10 h-9 text-xs"
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label className="text-xs">Email *</Label>
+                <Input
+                  type="email"
+                  required
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="candidate@example.com"
+                  className="bg-white/5 border-white/10 h-9 text-xs"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Phone</Label>
+                <Input
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  placeholder="+968 9123 4567"
+                  className="bg-white/5 border-white/10 h-9 text-xs"
+                />
+              </div>
+            </div>
+
+            <div className="space-y-1">
+              <Label className="text-xs">Headline / Current Role</Label>
+              <Input
+                value={headline}
+                onChange={(e) => setHeadline(e.target.value)}
+                placeholder="e.g. Senior Data Engineer"
+                className="bg-white/5 border-white/10 h-9 text-xs"
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label className="text-xs">Location</Label>
+                <Input
+                  value={location}
+                  onChange={(e) => setLocation(e.target.value)}
+                  className="bg-white/5 border-white/10 h-9 text-xs"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Years of Experience</Label>
+                <Input
+                  type="number"
+                  min={0}
+                  max={50}
+                  value={expYears}
+                  onChange={(e) => setExpYears(Number(e.target.value) || 0)}
+                  className="bg-white/5 border-white/10 h-9 text-xs"
+                />
+              </div>
+            </div>
+
+            <div className="space-y-1">
+              <Label className="text-xs">Assign Open Position (Optional)</Label>
+              <Select value={jobId} onValueChange={(v) => v != null && setJobId(v)}>
+                <SelectTrigger className="bg-white/5 border-white/10 h-9 text-xs">
+                  <SelectValue placeholder="Select a open job…" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">None (Pool only)</SelectItem>
+                  {openJobsData.filter((j) => j.status === "Open").map((j) => (
+                    <SelectItem key={j.id} value={j.id}>
+                      {j.title} ({j.department})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-1">
+              <Label className="text-xs">Skills (Comma-separated)</Label>
+              <Input
+                value={skills}
+                onChange={(e) => setSkills(e.target.value)}
+                placeholder="Python, PostgreSQL, React, AWS"
+                className="bg-white/5 border-white/10 h-9 text-xs"
+              />
+            </div>
+
+            <div className="flex justify-end gap-2 pt-3">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="text-xs"
+                onClick={() => setAddModalOpen(false)}
+                disabled={createCandidateMutation.isPending}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                size="sm"
+                className="gradient-brand text-white text-xs gap-1.5 cursor-pointer"
+                disabled={createCandidateMutation.isPending}
+              >
+                {createCandidateMutation.isPending ? (
+                  <>
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" /> Adding…
+                  </>
+                ) : (
+                  <>
+                    <Plus className="h-3.5 w-3.5" /> Save Candidate
+                  </>
+                )}
+              </Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
       {isLoading && (
         <div className="p-3 space-y-2">
           {Array.from({ length: 8 }).map((_, i) => (
