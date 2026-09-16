@@ -12,6 +12,7 @@ import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { createAdminSupabaseClient } from '@/lib/supabase/admin';
 import { decryptSecret } from './secrets';
 type ProviderConfig = {apiKey?:string;chatModel?:string;embeddingModel?:string};
+
 const configuration = cache(async () => {
   const client = await createServerSupabaseClient();
   const {data:{user}} = await client.auth.getUser();
@@ -61,13 +62,29 @@ function buildProvider(name: string, config: ProviderConfig = {}): AIProvider {
   }
 }
 
-/** Resolve organization settings on each request; never mutate process-wide credentials. */
+/** Resolve organization settings on each request; gracefully fall back to process.env if app_secrets fails. */
 export async function getAIProvider(): Promise<AIProvider> {
-  const config = await configuration();
-  return buildProvider(config.ai_provider || process.env.AI_PROVIDER || 'openrouter', {apiKey:config.ai_api_key,chatModel:config.ai_chat_model});
+  let config: Record<string, string> = {};
+  try {
+    config = await configuration();
+  } catch (err) {
+    console.warn("[getAIProvider] Could not load organization app_secrets (using process.env fallback):", err instanceof Error ? err.message : err);
+  }
+  const providerName = config.ai_provider || process.env.AI_PROVIDER || 'openrouter';
+  const apiKey = config.ai_api_key || process.env.OPENROUTER_API_KEY || process.env.AI_PROVIDER_KEY || process.env.NEXT_PUBLIC_OPENROUTER_API_KEY;
+  const chatModel = config.ai_chat_model || process.env.AI_CHAT_MODEL;
+  return buildProvider(providerName, { apiKey, chatModel });
 }
+
 export async function getEmbeddingProvider(): Promise<AIProvider> {
-  const config=await configuration();
-  // Keep embeddings on the configured deployment model to preserve vector compatibility.
-  return buildProvider(process.env.AI_EMBEDDING_PROVIDER || process.env.AI_PROVIDER || 'openrouter', {embeddingModel:config.ai_embed_model});
+  let config: Record<string, string> = {};
+  try {
+    config = await configuration();
+  } catch (err) {
+    console.warn("[getEmbeddingProvider] Could not load organization app_secrets (using process.env fallback):", err instanceof Error ? err.message : err);
+  }
+  const providerName = process.env.AI_EMBEDDING_PROVIDER || config.ai_provider || process.env.AI_PROVIDER || 'openrouter';
+  const apiKey = config.ai_api_key || process.env.OPENROUTER_API_KEY || process.env.AI_PROVIDER_KEY || process.env.NEXT_PUBLIC_OPENROUTER_API_KEY;
+  const embeddingModel = config.ai_embed_model || process.env.AI_EMBEDDING_MODEL;
+  return buildProvider(providerName, { apiKey, embeddingModel });
 }
