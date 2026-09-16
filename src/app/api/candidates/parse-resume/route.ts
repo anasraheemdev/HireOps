@@ -14,14 +14,16 @@ export async function POST(request: Request) {
     const form = await request.formData();
     const file = form.get("file");
     if (!(file instanceof File)) throw new ApiError(400, "Missing file upload");
-    if (file.size === 0 || file.size > 10 * 1024 * 1024) throw new ApiError(400, "Upload a non-empty PDF or DOCX up to 10 MB.");
+    if (file.size === 0 || file.size > 10 * 1024 * 1024) {
+      throw new ApiError(400, "Upload a non-empty PDF, DOCX, or TXT file up to 10 MB.");
+    }
 
     const buffer = Buffer.from(await file.arrayBuffer());
     const mimeType = file.type || "application/octet-stream";
     const fileName = file.name || "resume.pdf";
 
     if (!isSupportedResumeMime(mimeType, fileName)) {
-      throw new ApiError(400, "Unsupported file type. Upload PDF or DOCX.");
+      throw new ApiError(400, `Unsupported file format (${fileName}). Upload PDF, DOCX, or TXT.`);
     }
 
     const tmpId = crypto.randomUUID();
@@ -29,12 +31,16 @@ export async function POST(request: Request) {
     const storagePath = `${profile.organizationId}/tmp/${tmpId}/${safeName}`;
 
     const result = await parseResumeBuffer(buffer, mimeType, fileName);
+
+    let finalStoragePath: string | null = storagePath;
     const { error: uploadError } = await supabase.storage.from("resumes").upload(storagePath, buffer, {
       contentType: mimeType,
       upsert: false,
     });
-    if (uploadError) throw new ApiError(500, `Storage upload failed: ${uploadError.message}`);
-
+    if (uploadError) {
+      console.warn("[parse-resume] Storage upload warning (non-fatal):", uploadError.message);
+      finalStoragePath = null;
+    }
 
     return NextResponse.json({
       data: {
@@ -42,7 +48,7 @@ export async function POST(request: Request) {
         confidence: result.confidence,
         warnings: result.warnings,
         resumeText: result.resumeText,
-        resumeFilePath: storagePath,
+        resumeFilePath: finalStoragePath,
         fileName,
       },
     });

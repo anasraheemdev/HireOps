@@ -48,10 +48,11 @@ export function jsonError(err: unknown) {
   if (err && typeof err === "object" && "name" in err && (err as { name: string }).name === "ZodError") {
     const issues = (err as { issues?: { message?: string }[] }).issues;
     return NextResponse.json(
-      { error: issues?.[0]?.message ?? "Invalid request" },
+      { error: issues?.[0]?.message ?? "Invalid request payload" },
       { status: 400 }
     );
   }
-  console.error(err);
-  return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+  console.error("[API Error]", err);
+  const message = err instanceof Error ? err.message : "Internal server error";
+  return NextResponse.json({ error: message }, { status: 500 });
 }

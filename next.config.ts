@@ -10,6 +10,11 @@ const nextConfig: NextConfig = {
         destination: "/login",
         permanent: false,
       },
+      {
+        source: "/hr",
+        destination: "/hr/dashboard",
+        permanent: false,
+      },
     ];
   },
   // Direct static assets on Amplify (avoids slow /_next/image optimization path)

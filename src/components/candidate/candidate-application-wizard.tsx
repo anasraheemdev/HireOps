@@ -183,10 +183,20 @@ export function CandidateApplicationWizard({
 
   // Toggle voice recognition for Voice-Only AI Interview
   const toggleSpeech = () => {
+    type SpeechRecInst = {
+      continuous: boolean;
+      interimResults: boolean;
+      onresult: (event: { resultIndex: number; results: { [key: number]: { transcript: string }[] } & { length: number } }) => void;
+      onerror: () => void;
+      onend: () => void;
+      start: () => void;
+      stop: () => void;
+    };
+
     const SpeechRecognition =
       typeof window !== "undefined"
-        ? (window as unknown as { SpeechRecognition?: new () => any; webkitSpeechRecognition?: new () => any }).SpeechRecognition ||
-          (window as unknown as { webkitSpeechRecognition?: new () => any }).webkitSpeechRecognition
+        ? (window as unknown as { SpeechRecognition?: new () => SpeechRecInst; webkitSpeechRecognition?: new () => SpeechRecInst }).SpeechRecognition ||
+          (window as unknown as { webkitSpeechRecognition?: new () => SpeechRecInst }).webkitSpeechRecognition
         : undefined;
 
     if (!SpeechRecognition) {
@@ -203,7 +213,7 @@ export function CandidateApplicationWizard({
     const rec = new SpeechRecognition();
     rec.continuous = true;
     rec.interimResults = true;
-    rec.onresult = (event: any) => {
+    rec.onresult = (event) => {
       let current = "";
       for (let i = event.resultIndex; i < event.results.length; i++) {
         current += event.results[i][0].transcript;

@@ -25,8 +25,13 @@ export class OpenRouterProvider implements AIProvider {
   private embeddingModel: string;
 
   constructor(config?: {apiKey?:string; chatModel?:string; embeddingModel?:string}) {
-    const apiKey = config?.apiKey || process.env.OPENROUTER_API_KEY;
-    if (!apiKey) throw new AIProviderError("openrouter", "OPENROUTER_API_KEY is not set");
+    const apiKey = config?.apiKey || process.env.OPENROUTER_API_KEY || process.env.AI_PROVIDER_KEY || process.env.NEXT_PUBLIC_OPENROUTER_API_KEY;
+    if (!apiKey) {
+      throw new AIProviderError(
+        "openrouter",
+        "OPENROUTER_API_KEY is not set in environment variables or app settings. Please set OPENROUTER_API_KEY in AWS Amplify Console."
+      );
+    }
     this.apiKey = apiKey;
     this.chatModel = config?.chatModel || process.env.AI_CHAT_MODEL || "qwen/qwen-2.5-72b-instruct";
     this.embeddingModel = config?.embeddingModel || process.env.AI_EMBEDDING_MODEL || "openai/text-embedding-3-small";
