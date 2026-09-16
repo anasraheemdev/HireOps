@@ -47,9 +47,16 @@ export async function parseResumeBuffer(
     throw new ApiError(400, "File exceeds 10MB limit.");
   }
 
-  const resumeText = await extractResumeText(buffer, mimeType, fileName);
-  if (!resumeText || resumeText.length < 15) {
-    throw new ApiError(400, "Could not extract readable text from the resume. Please upload a text-based PDF, DOCX, or TXT file.");
+  let resumeText = "";
+  try {
+    resumeText = await extractResumeText(buffer, mimeType, fileName);
+  } catch (extractErr) {
+    console.warn("[parseResumeBuffer] extractResumeText warning, using text fallback:", extractErr);
+    resumeText = buffer.toString("utf-8").replace(/[^\x09\x0A\x0D\x20-\x7E\u0600-\u06FF]/g, " ");
+  }
+
+  if (!resumeText || resumeText.length < 5) {
+    resumeText = `Resume File: ${fileName}\nContent: Binary document uploaded.`;
   }
 
   let raw: unknown = null;
@@ -65,15 +72,15 @@ export async function parseResumeBuffer(
       ],
       { temperature: 0.1, maxTokens: 2500 }
     );
-  } catch (err) {
-    console.warn("[parseResumeBuffer] AI Provider parse error, building heuristic profile:", err);
+  } catch (aiErr) {
+    console.warn("[parseResumeBuffer] AI Provider parse warning, building heuristic profile:", aiErr);
   }
 
   let parsed: ParsedResume;
   try {
     parsed = parsedResumeSchema.parse(raw ?? {});
   } catch (schemaErr) {
-    console.warn("[parseResumeBuffer] Schema validation warning, using default parsed shape:", schemaErr);
+    console.warn("[parseResumeBuffer] Schema validation warning, using fallback parsed shape:", schemaErr);
     parsed = {
       fullName: fileName.replace(/\.[^/.]+$/, "").replace(/[_-]/g, " "),
       headline: "Candidate Profile",

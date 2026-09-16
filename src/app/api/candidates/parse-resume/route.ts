@@ -11,9 +11,16 @@ export async function POST(request: Request) {
     const { supabase, profile } = await requirePermission("candidates.write");
     if (!profile.organizationId) throw new ApiError(403, "No organization assigned to your profile");
 
-    const form = await request.formData();
+    let form: FormData;
+    try {
+      form = await request.formData();
+    } catch (formErr) {
+      console.error("[parse-resume] Error parsing request form data:", formErr);
+      throw new ApiError(400, "Could not parse form upload payload. Ensure the file is under 10MB.");
+    }
+
     const file = form.get("file");
-    if (!(file instanceof File)) throw new ApiError(400, "Missing file upload");
+    if (!(file instanceof File)) throw new ApiError(400, "Missing file upload parameter 'file'.");
     if (file.size === 0 || file.size > 10 * 1024 * 1024) {
       throw new ApiError(400, "Upload a non-empty PDF, DOCX, or TXT file up to 10 MB.");
     }
@@ -32,14 +39,19 @@ export async function POST(request: Request) {
 
     const result = await parseResumeBuffer(buffer, mimeType, fileName);
 
-    let finalStoragePath: string | null = storagePath;
-    const { error: uploadError } = await supabase.storage.from("resumes").upload(storagePath, buffer, {
-      contentType: mimeType,
-      upsert: false,
-    });
-    if (uploadError) {
-      console.warn("[parse-resume] Storage upload warning (non-fatal):", uploadError.message);
-      finalStoragePath = null;
+    let finalStoragePath: string | null = null;
+    try {
+      const { error: uploadError } = await supabase.storage.from("resumes").upload(storagePath, buffer, {
+        contentType: mimeType,
+        upsert: false,
+      });
+      if (!uploadError) {
+        finalStoragePath = storagePath;
+      } else {
+        console.warn("[parse-resume] Storage upload warning (non-fatal):", uploadError.message);
+      }
+    } catch (storageErr) {
+      console.warn("[parse-resume] Storage upload exception (non-fatal):", storageErr);
     }
 
     return NextResponse.json({
