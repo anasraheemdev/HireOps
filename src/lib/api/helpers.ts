@@ -53,6 +53,11 @@ export function jsonError(err: unknown) {
     );
   }
   console.error("[API Error]", err);
-  const message = err instanceof Error ? err.message : "Internal server error";
+  const message =
+    err instanceof Error
+      ? err.message
+      : typeof err === "object" && err !== null && "message" in err
+      ? String((err as { message: unknown }).message)
+      : "Internal server error";
   return NextResponse.json({ error: message }, { status: 500 });
 }

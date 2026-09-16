@@ -21,15 +21,23 @@ export async function POST(request: Request) {
 
     const contentType = request.headers.get("content-type") || "";
     if (contentType.includes("multipart/form-data")) {
-      const form = await request.formData();
-      jobId = (form.get("jobId") as string) || "";
-      const formFile = form.get("file");
-      if (formFile instanceof File && formFile.size > 0) {
-        file = formFile;
+      try {
+        const form = await request.formData();
+        jobId = (form.get("jobId") as string) || "";
+        const formFile = form.get("file");
+        if (formFile instanceof File && formFile.size > 0) {
+          file = formFile;
+        }
+      } catch (formErr) {
+        console.warn("[Apply API] Error parsing multipart form:", formErr);
       }
     } else {
-      const body = await request.json();
-      jobId = body.jobId || "";
+      try {
+        const body = await request.json();
+        jobId = body?.jobId || "";
+      } catch (jsonErr) {
+        console.warn("[Apply API] Error parsing JSON body:", jsonErr);
+      }
     }
 
     if (!jobId) throw new ApiError(400, "Job ID is required");
@@ -60,7 +68,7 @@ export async function POST(request: Request) {
       });
     }
 
-    // 3. Process CV upload if provided
+    // 3. Process CV upload if provided (fault tolerant)
     let resumePath: string | null = null;
     let parsedResumeText: string | null = null;
 
@@ -68,45 +76,57 @@ export async function POST(request: Request) {
       if (!isSupportedResumeMime(file.type, file.name) || file.size > 10 * 1024 * 1024) {
         throw new ApiError(400, "Invalid resume file. Upload a PDF or DOCX up to 10MB.");
       }
-      const buffer = Buffer.from(await file.arrayBuffer());
-      const ext = file.name.split(".").pop() || "pdf";
-      const path = `${organizationId}/${candidateId}/${crypto.randomUUID()}.${ext}`;
+      try {
+        const buffer = Buffer.from(await file.arrayBuffer());
+        const ext = file.name.split(".").pop() || "pdf";
+        const path = `${organizationId}/${candidateId}/${crypto.randomUUID()}.${ext}`;
 
-      const { error: upErr } = await supabase.storage
-        .from("resumes")
-        .upload(path, buffer, { contentType: file.type || "application/pdf", upsert: true });
+        const { error: upErr } = await supabase.storage
+          .from("resumes")
+          .upload(path, buffer, { contentType: file.type || "application/pdf", upsert: true });
 
-      if (!upErr) {
-        resumePath = path;
+        if (!upErr) {
+          resumePath = path;
+        } else {
+          console.warn("[Apply API] Resume storage upload warning:", upErr.message);
+        }
+
         try {
           const parsed = await parseResumeBuffer(buffer, file.type || "application/pdf", file.name);
           parsedResumeText = parsed.resumeText;
 
           // Update candidate details with parsed resume data
-          await admin.from("candidates").update({
-            headline: parsed.parsed.headline || job.title,
-            phone: parsed.parsed.phone || null,
-            location: parsed.parsed.location || null,
-            experience_years: parsed.parsed.experienceYears || 0,
-            resume_file_path: path,
-            resume_text: parsed.resumeText,
-            updated_at: new Date().toISOString(),
-          }).eq("id", candidateId);
+          try {
+            await admin.from("candidates").update({
+              headline: parsed.parsed.headline || job.title,
+              phone: parsed.parsed.phone || null,
+              location: parsed.parsed.location || null,
+              experience_years: parsed.parsed.experienceYears || 0,
+              ...(resumePath ? { resume_file_path: resumePath } : {}),
+              resume_text: parsed.resumeText,
+              updated_at: new Date().toISOString(),
+            }).eq("id", candidateId);
 
-          if (parsed.parsed.skills?.length) {
-            await admin.from("candidate_skills").delete().eq("candidate_id", candidateId);
-            await admin.from("candidate_skills").insert(
-              parsed.parsed.skills.map((s) => ({ candidate_id: candidateId, skill: s }))
-            );
+            if (parsed.parsed.skills?.length) {
+              await admin.from("candidate_skills").delete().eq("candidate_id", candidateId);
+              await admin.from("candidate_skills").insert(
+                parsed.parsed.skills.map((s) => ({ candidate_id: candidateId, skill: s }))
+              );
+            }
+          } catch (candUpdateErr) {
+            console.warn("[Apply API] Candidate update warning:", candUpdateErr);
           }
         } catch (parseErr) {
-          console.warn("Resume auto-parse warning:", parseErr);
+          console.warn("[Apply API] Resume auto-parse warning:", parseErr);
         }
+      } catch (fileErr) {
+        console.warn("[Apply API] File processing warning:", fileErr);
       }
     }
 
-    // 4. Create Application record
-    const { data: newApp, error: appErr } = await admin
+    // 4. Create Application record with fallback for schema/created_by differences
+    let newApp = null;
+    const { data: primaryApp, error: appErr } = await admin
       .from("applications")
       .insert({
         candidate_id: candidateId,
@@ -117,9 +137,28 @@ export async function POST(request: Request) {
       .select("*")
       .single();
 
-    if (appErr || !newApp) throw appErr || new Error("Failed to create application");
+    if (appErr || !primaryApp) {
+      // Fallback insert without created_by if constraint/column issue
+      const { data: fallbackApp, error: fallbackErr } = await admin
+        .from("applications")
+        .insert({
+          candidate_id: candidateId,
+          job_id: jobId,
+          stage: "applied",
+        })
+        .select("*")
+        .single();
 
-    // 5. Update Candidate Embedding & Run AI Match Scoring
+      if (fallbackErr || !fallbackApp) {
+        const errMsg = appErr?.message || fallbackErr?.message || "Database execution failed";
+        throw new ApiError(500, `Failed to submit application: ${errMsg}`);
+      }
+      newApp = fallbackApp;
+    } else {
+      newApp = primaryApp;
+    }
+
+    // 5. Update Candidate Embedding & Run AI Match Scoring (non-blocking)
     try {
       const { data: cand } = await admin
         .from("candidates")
@@ -136,14 +175,14 @@ export async function POST(request: Request) {
           skills: skillsList,
           resumeText: parsedResumeText || cand.resume_text,
         });
-        await embedAndStoreCandidate(admin, candidateId, embedText);
-        await explainMatch(admin, jobId, candidateId).catch((e) => console.warn("Match explanation:", e));
+        await embedAndStoreCandidate(admin, candidateId, embedText).catch((e) => console.warn("[Apply API] Embed error:", e));
+        await explainMatch(admin, jobId, candidateId).catch((e) => console.warn("[Apply API] Match explanation error:", e));
       }
     } catch (matchErr) {
-      console.warn("Match scoring warning:", matchErr);
+      console.warn("[Apply API] Match scoring warning:", matchErr);
     }
 
-    // 6. Auto-generate or Assign Assessment Exam for Candidate
+    // 6. Auto-assign Assessment Exam for Candidate (non-blocking)
     let assignedAssessment = null;
     try {
       assignedAssessment = await autoAssignAssessmentToApplication(
@@ -153,10 +192,11 @@ export async function POST(request: Request) {
         jobId
       );
     } catch (assessErr) {
-      console.warn("Auto assessment assign error:", assessErr);
+      console.warn("[Apply API] Auto assessment assign error:", assessErr);
     }
 
-    // 7. Auto-create AI Interview Session for Candidate
+    // 7. Auto-create AI Interview Session for Candidate (non-blocking)
+    let interviewSession = null;
     try {
       const { data: existingSession } = await admin
         .from("interview_sessions")
@@ -166,7 +206,7 @@ export async function POST(request: Request) {
         .maybeSingle();
 
       if (!existingSession) {
-        await admin.from("interview_sessions").insert({
+        const { data: newSession } = await admin.from("interview_sessions").insert({
           organization_id: organizationId,
           application_id: newApp.id,
           candidate_id: candidateId,
@@ -174,13 +214,16 @@ export async function POST(request: Request) {
           mode: "behavioral",
           status: "scheduled",
           scheduled_at: new Date().toISOString(),
-        });
+        }).select("id").single();
+        interviewSession = newSession;
+      } else {
+        interviewSession = existingSession;
       }
     } catch (interviewErr) {
-      console.warn("Auto interview schedule error:", interviewErr);
+      console.warn("[Apply API] Auto interview schedule error:", interviewErr);
     }
 
-    // 8. Create Notification for Candidate
+    // 8. Create Notification for Candidate (non-blocking)
     await createNotification(supabase, {
       recipientId: user.id,
       type: "application",
@@ -194,7 +237,8 @@ export async function POST(request: Request) {
         applicationId: newApp.id,
         jobTitle: job.title,
         stage: newApp.stage,
-        assessment: assignedAssessment ? { title: assignedAssessment.assessmentTitle } : null,
+        assessment: assignedAssessment ? { assignmentId: assignedAssessment.id, title: assignedAssessment.assessmentTitle } : null,
+        interviewSession: interviewSession ? { id: interviewSession.id } : null,
       },
     }, { status: 201 });
   } catch (err) {
