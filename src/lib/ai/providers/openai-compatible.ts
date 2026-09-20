@@ -1,5 +1,4 @@
-import "server-only";
-import type { AIProvider, ChatMessage, ChatJSONOptions, ChatStreamOptions } from "../types";
+import type { AIProvider, ChatMessage, ChatJSONOptions } from "../types";
 import { AIProviderError } from "../types";
 
 /**

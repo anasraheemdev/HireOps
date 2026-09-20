@@ -10,6 +10,7 @@ export async function POST(request: Request) {
   try {
     const { supabase, user, profile } = await requireProfile();
     const { candidateId, organizationId } = await requireCandidateId(profile);
+
     const form = await request.formData();
     const file = form.get("file");
 
@@ -29,27 +30,34 @@ export async function POST(request: Request) {
     const ext = fileName.split(".").pop() || "pdf";
     const privatePath = `${organizationId}/${candidateId}/draft_${crypto.randomUUID()}.${ext}`;
 
+    let resumeFilePath: string | null = null;
     const { error: upErr } = await supabase.storage.from("resumes").upload(privatePath, buffer, {
       contentType: mimeType,
       upsert: true,
     });
+
     if (upErr) {
-      console.warn("[Candidate Resume API] Storage upload warning:", upErr.message);
+      console.warn("[Candidate Resume API] Storage upload warning (resumeFilePath omitted):", upErr.message);
+    } else {
+      resumeFilePath = privatePath;
+
+      try {
+        await supabase.from("candidate_documents").insert({
+          organization_id: organizationId,
+          candidate_id: candidateId,
+          label: `Draft Resume (${fileName})`,
+          file_path: privatePath,
+          mime_type: mimeType,
+          size_bytes: file.size,
+          uploaded_by: user.id,
+        });
+      } catch {
+        // Document tracking record insert is optional
+      }
     }
 
-    try {
-      await supabase.from("candidate_documents").insert({
-        organization_id: organizationId,
-        candidate_id: candidateId,
-        label: `Draft Resume (${fileName})`,
-        file_path: privatePath,
-        mime_type: mimeType,
-        size_bytes: file.size,
-        uploaded_by: user.id,
-      });
-    } catch {
-      // document record insert is optional
-    }
+    // Server-side diagnostic log (safe metadata only)
+    console.log(`[Candidate Resume API] Parsed resume for candidate ${candidateId} (${fileName}, ${file.size} bytes, storage: ${resumeFilePath ? "stored" : "skipped"})`);
 
     return NextResponse.json({
       data: {
@@ -57,7 +65,7 @@ export async function POST(request: Request) {
         confidence: parseResult.confidence,
         warnings: parseResult.warnings,
         resumeText: parseResult.resumeText,
-        resumeFilePath: privatePath,
+        resumeFilePath,
         fileName,
       },
     });

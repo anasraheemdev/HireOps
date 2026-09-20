@@ -11,13 +11,15 @@ export async function GET(
 ) {
   try {
     const { assignmentId } = await params;
-    const { supabase, profile } = await requireProfile();
+    const { profile } = await requireProfile();
 
     if (!profile.candidateId && profile.portalRole !== "super_admin" && profile.portalRole !== "hr") {
       throw new ApiError(403, "No candidate profile linked to this account");
     }
 
-    const { data: assignment, error } = await supabase
+    const admin = createAdminSupabaseClient();
+
+    const { data: assignment, error } = await admin
       .from("assessment_assignments")
       .select(`
         id, status, score, started_at, completed_at, answers, grading_details,
@@ -36,13 +38,12 @@ export async function GET(
       profile.portalRole === "candidate" &&
       app?.candidate_id !== profile.candidateId
     ) {
-      throw new ApiError(403, "Access denied to this assessment");
+      throw new ApiError(404, "Assessment assignment not found");
     }
 
     const assessmentObj = Array.isArray(assignment.assessments) ? assignment.assessments[0] : assignment.assessments;
     if (!assessmentObj) throw new ApiError(404, "Assessment template missing");
 
-    const admin = createAdminSupabaseClient();
     const { data: questions } = await admin
       .from("assessment_questions")
       .select("id, prompt, question_type, options, points, sort_order")
@@ -101,7 +102,7 @@ export async function POST(
 ) {
   try {
     const { assignmentId } = await params;
-    const { supabase, profile } = await requireProfile();
+    const { profile } = await requireProfile();
 
     if (!profile.candidateId && profile.portalRole !== "super_admin" && profile.portalRole !== "hr") {
       throw new ApiError(403, "No candidate profile linked to account");
@@ -161,8 +162,6 @@ export async function POST(
       });
     }
 
-    const admin = createAdminSupabaseClient();
-
     // Server-authoritative timer deadline check
     const assessmentObj = Array.isArray(assignment.assessments) ? assignment.assessments[0] : assignment.assessments;
     const durationMinutes = Number(assessmentObj?.duration_minutes || 30);
@@ -189,7 +188,7 @@ export async function POST(
     for (const q of questions ?? []) {
       const qPoints = q.points || 10;
       totalMaxPoints += qPoints;
-      const candidateAns = (body.answers[q.id] || "").trim();
+      const candidateAns = (body.answers?.[q.id] || "").trim();
 
       const normType = (q.question_type || "").toLowerCase();
 

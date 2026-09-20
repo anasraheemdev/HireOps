@@ -1,4 +1,3 @@
-import "server-only";
 import type { AIProvider } from "./types";
 import { OpenRouterProvider } from "./providers/openrouter";
 import { GroqProvider } from "./providers/groq";

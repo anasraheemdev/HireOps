@@ -1,4 +1,3 @@
-import "server-only";
 import { inflateSync, unzipSync } from "node:zlib";
 import mammoth from "mammoth";
 

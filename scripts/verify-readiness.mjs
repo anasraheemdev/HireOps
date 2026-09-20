@@ -43,6 +43,7 @@ try{
  const hr=await account('Super Admin');
  const {data:departments}=await admin.from('departments').select('name').eq('organization_id',hr.org).limit(1);
  const job=await api(hr.cookie,'/api/jobs','POST',{title:`Readiness Software Engineer ${stamp}`,department:departments[0]?.name||'Engineering',location:'Muscat, Oman',type:'Full-time',level:'Senior',minExperience:5,description:'Develop reliable JavaScript and React applications backed by PostgreSQL. Design APIs, test software and review code.',requiredSkills:'JavaScript, React, PostgreSQL'});
+ if (job.status !== 200 && job.status !== 201) console.log('JOB_ERR:', job);
  check(job.status===201||job.status===200,'Create job'); created.jobs.push(job.data.id);
  check((await api(hr.cookie,`/api/jobs/${job.data.id}`,'PATCH',{status:'Open'})).status===200,'Publish job');
  const pdf=new jsPDF();pdf.text(['Sam Verification','sam.verification@example.com','Software Engineer | Muscat, Oman','5 years professional experience','Skills: JavaScript, React, PostgreSQL','Experience: Software Engineer at Example Engineering, 2021 - 2026','Built React applications and PostgreSQL APIs with automated tests.','Education: BSc Computer Science, Example University, 2017 - 2021'],15,20);
