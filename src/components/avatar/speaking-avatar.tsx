@@ -1,10 +1,10 @@
-﻿"use client";
+"use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createAvatar } from "@dicebear/core";
-import { lorelei } from "@dicebear/collection";
+import { notionists } from "@dicebear/collection";
 import { motion, AnimatePresence } from "framer-motion";
-import { Volume2, VolumeX } from "lucide-react";
+import { Volume2, VolumeX, RotateCcw, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useLang } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
@@ -20,7 +20,12 @@ type SpeakingAvatarProps = {
   size?: number;
   className?: string;
   showControls?: boolean;
+  /** Callback when speaking starts or ends */
+  onSpeakingChange?: (speaking: boolean) => void;
+  statusText?: string;
 };
+
+export type AvatarStatus = "idle" | "speaking" | "thinking" | "muted" | "blocked" | "error";
 
 function pickHumanVoice(lang: string): SpeechSynthesisVoice | null {
   if (typeof window === "undefined" || !window.speechSynthesis) return null;
@@ -33,8 +38,7 @@ function pickHumanVoice(lang: string): SpeechSynthesisVoice | null {
       let score = 0;
       const name = v.name.toLowerCase();
       if (v.lang.toLowerCase().startsWith(preferLang)) score += 10;
-      // Prefer neural / natural / online voices when available
-      if (/neural|natural|premium|enhanced|google|microsoft|samantha|aria|jenny|zira|sara|noura/.test(name)) {
+      if (/neural|natural|premium|enhanced|google|microsoft|samantha|aria|jenny|zira|sara|noura|zayd/.test(name)) {
         score += 8;
       }
       if (v.localService === false) score += 3;
@@ -46,22 +50,21 @@ function pickHumanVoice(lang: string): SpeechSynthesisVoice | null {
   return scored[0]?.v ?? voices[0] ?? null;
 }
 
-function cleanForSpeech(text: string) {
+function cleanForSpeech(text: string): string {
   return text
     .replace(/[*_`#>\-]+/g, " ")
     .replace(/https?:\/\/\S+/g, " ")
     .replace(/\s+/g, " ")
-    .trim()
-    .slice(0, 1200);
+    .trim();
 }
 
-/** Insert brief pauses so speech cadence feels more natural */
-function humanizeSpeechText(text: string) {
-  return cleanForSpeech(text)
-    .replace(/([.!?])\s+/g, "$1 … ")
-    .replace(/([,;:])\s+/g, "$1 ")
-    .replace(/\s+/g, " ")
-    .trim();
+/** Split text into natural sentence chunks for reliable Chromium SpeechSynthesis */
+function splitIntoSentences(text: string): string[] {
+  const cleaned = cleanForSpeech(text);
+  if (!cleaned) return [];
+  // Match sentences ending in punctuation or remaining text
+  const sentences = cleaned.match(/[^.!?]+[.!?]+|\s*[^.!?]+$/g) || [cleaned];
+  return sentences.map((s) => s.trim()).filter((s) => s.length > 0);
 }
 
 export function SpeakingAvatar({
@@ -70,171 +73,257 @@ export function SpeakingAvatar({
   subtitle,
   speakText,
   autoSpeak = true,
-  size = 160,
+  size = 240,
   className,
   showControls = true,
+  onSpeakingChange,
+  statusText,
 }: SpeakingAvatarProps) {
   const { lang, t } = useLang();
   const displayName = name ?? t("interviewer");
   const displaySubtitle = subtitle ?? t("interviewerRole");
+
   const [speaking, setSpeaking] = useState(false);
   const [muted, setMuted] = useState(false);
-  const [mouth, setMouth] = useState(0);
-  const lastSpoken = useRef<string | null>(null);
-  const utterRef = useRef<SpeechSynthesisUtterance | null>(null);
+  const [blocked, setBlocked] = useState(false);
+  const [voicesLoaded, setVoicesLoaded] = useState(false);
+
+  const lastSpokenRef = useRef<string | null>(null);
+  const queueRef = useRef<string[]>([]);
+  const isCancelledRef = useRef(false);
 
   const svg = useMemo(() => {
-    const avatar = createAvatar(lorelei, {
+    const avatar = createAvatar(notionists, {
       seed,
-      backgroundColor: ["0f172a", "1e293b"],
+      backgroundColor: ["080D16", "111823"],
       backgroundType: ["gradientLinear"],
     });
     return avatar.toDataUri();
   }, [seed]);
 
+  const updateSpeaking = useCallback(
+    (isSpeaking: boolean) => {
+      setSpeaking(isSpeaking);
+      onSpeakingChange?.(isSpeaking);
+    },
+    [onSpeakingChange]
+  );
+
   const stop = useCallback(() => {
-    if (typeof window !== "undefined") window.speechSynthesis?.cancel();
-    setSpeaking(false);
-    setMouth(0);
-    utterRef.current = null;
-  }, []);
+    isCancelledRef.current = true;
+    queueRef.current = [];
+    if (typeof window !== "undefined" && window.speechSynthesis) {
+      window.speechSynthesis.cancel();
+    }
+    updateSpeaking(false);
+  }, [updateSpeaking]);
+
+  const speakSentenceQueue = useCallback(
+    (sentences: string[]) => {
+      if (typeof window === "undefined" || !window.speechSynthesis || muted) return;
+      if (!sentences.length) {
+        updateSpeaking(false);
+        return;
+      }
+
+      window.speechSynthesis.cancel();
+      isCancelledRef.current = false;
+      queueRef.current = [...sentences];
+      updateSpeaking(true);
+      setBlocked(false);
+
+      const speakNextChunk = () => {
+        if (isCancelledRef.current || !queueRef.current.length) {
+          updateSpeaking(false);
+          return;
+        }
+
+        const chunk = queueRef.current.shift()!;
+        const utter = new SpeechSynthesisUtterance(chunk);
+        utter.lang = lang === "ar" ? "ar-SA" : "en-US";
+        utter.rate = lang === "ar" ? 0.88 : 0.92;
+        utter.pitch = 1.05;
+        utter.volume = 1;
+
+        const voice = pickHumanVoice(utter.lang);
+        if (voice) utter.voice = voice;
+
+        utter.onend = () => {
+          if (!isCancelledRef.current && queueRef.current.length > 0) {
+            speakNextChunk();
+          } else {
+            updateSpeaking(false);
+          }
+        };
+
+        utter.onerror = (e) => {
+          console.warn("[TTS Error]", e);
+          if (e.error === "not-allowed") {
+            setBlocked(true);
+          }
+          if (!isCancelledRef.current && queueRef.current.length > 0) {
+            speakNextChunk();
+          } else {
+            updateSpeaking(false);
+          }
+        };
+
+        try {
+          window.speechSynthesis.speak(utter);
+        } catch {
+          setBlocked(true);
+          updateSpeaking(false);
+        }
+      };
+
+      speakNextChunk();
+    },
+    [lang, muted, updateSpeaking]
+  );
 
   const speak = useCallback(
     (raw: string) => {
-      if (typeof window === "undefined" || !window.speechSynthesis || muted) return;
-      const text = humanizeSpeechText(raw);
-      if (!text) return;
-
-      window.speechSynthesis.cancel();
-      const utter = new SpeechSynthesisUtterance(text);
-      utter.lang = lang === "ar" ? "ar-SA" : "en-US";
-      // Humanized cadence: slightly slower, gentle pitch variation
-      utter.rate = lang === "ar" ? 0.86 : 0.9;
-      utter.pitch = lang === "ar" ? 1.05 : 1.1;
-      utter.volume = 1;
-
-      const voice = pickHumanVoice(utter.lang);
-      if (voice) utter.voice = voice;
-
-      utter.onstart = () => setSpeaking(true);
-      utter.onend = () => {
-        setSpeaking(false);
-        setMouth(0);
-      };
-      utter.onerror = () => {
-        setSpeaking(false);
-        setMouth(0);
-      };
-
-      utterRef.current = utter;
-      window.speechSynthesis.speak(utter);
+      if (!raw.trim() || muted) return;
+      const sentences = splitIntoSentences(raw);
+      if (!sentences.length) return;
+      speakSentenceQueue(sentences);
     },
-    [lang, muted]
+    [muted, speakSentenceQueue]
   );
 
-  // Chrome loads voices asynchronously
+  // Warm up voices asynchronously
   useEffect(() => {
-    if (typeof window === "undefined") return;
-    const warm = () => window.speechSynthesis.getVoices();
-    warm();
-    window.speechSynthesis.addEventListener("voiceschanged", warm);
-    return () => window.speechSynthesis.removeEventListener("voiceschanged", warm);
+    if (typeof window === "undefined" || !window.speechSynthesis) return;
+    const loadVoices = () => {
+      const v = window.speechSynthesis.getVoices();
+      if (v.length > 0) setVoicesLoaded(true);
+    };
+    loadVoices();
+    window.speechSynthesis.addEventListener("voiceschanged", loadVoices);
+    return () => window.speechSynthesis.removeEventListener("voiceschanged", loadVoices);
   }, []);
 
+  // Handle autoSpeak prop
   useEffect(() => {
     if (!autoSpeak || !speakText || muted) return;
-    if (speakText === lastSpoken.current) return;
-    lastSpoken.current = speakText;
+    if (speakText === lastSpokenRef.current) return;
+    lastSpokenRef.current = speakText;
     speak(speakText);
-  }, [speakText, autoSpeak, muted, speak]);
+  }, [speakText, autoSpeak, muted, speak, voicesLoaded]);
 
+  // Cleanup on unmount
   useEffect(() => {
-    if (!speaking) return;
-    const id = window.setInterval(() => {
-      setMouth(0.25 + Math.random() * 0.75);
-    }, 90);
-    return () => window.clearInterval(id);
-  }, [speaking]);
+    return () => {
+      stop();
+    };
+  }, [stop]);
 
-  useEffect(() => () => stop(), [stop]);
+  const currentStatus = statusText
+    ? statusText
+    : speaking
+      ? "Speaking..."
+      : muted
+        ? "Muted"
+        : blocked
+          ? "Click Replay to enable audio"
+          : "Ready";
 
   return (
     <div className={cn("flex flex-col items-center text-center", className)}>
-      <div className="relative" style={{ width: size, height: size }}>
+      <div className="relative flex items-center justify-center" style={{ width: size, height: size }}>
+        {/* Animated OIA Gold Pulsing Ring */}
         <motion.div
-          className="absolute inset-0 rounded-full"
+          className="absolute inset-0 rounded-full border-2 border-[#C5A059]"
           animate={
             speaking
               ? {
+                  scale: [1, 1.08, 1],
+                  opacity: [0.6, 1, 0.6],
                   boxShadow: [
-                    "0 0 0 0 rgba(56,189,248,0.35)",
-                    "0 0 0 18px rgba(56,189,248,0)",
-                    "0 0 0 0 rgba(56,189,248,0.35)",
+                    "0 0 0 0 rgba(197, 160, 89, 0.4)",
+                    "0 0 0 16px rgba(197, 160, 89, 0)",
+                    "0 0 0 0 rgba(197, 160, 89, 0.4)",
                   ],
                 }
-              : { boxShadow: "0 0 0 0 rgba(56,189,248,0)" }
+              : { scale: 1, opacity: 0.3, boxShadow: "0 0 0 0 rgba(197, 160, 89, 0)" }
           }
-          transition={{ duration: 1.6, repeat: speaking ? Infinity : 0 }}
+          transition={{ duration: 1.8, repeat: speaking ? Infinity : 0, ease: "easeInOut" }}
         />
-        <div className="relative overflow-hidden rounded-full border border-white/15 bg-slate-900 shadow-xl">
+
+        {/* Avatar Card Frame */}
+        <div className="relative overflow-hidden rounded-full border-2 border-[#263140] bg-[#080D16] shadow-2xl transition-all" style={{ width: size - 8, height: size - 8 }}>
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={svg} alt={displayName} width={size} height={size} className="block" />
-          {/* Lip-sync overlay — soft oval that opens while speaking */}
-          <motion.div
-            className="pointer-events-none absolute left-1/2 -translate-x-1/2 rounded-full bg-rose-400/70"
-            style={{ width: size * 0.18, bottom: size * 0.22 }}
-            animate={{
-              height: speaking ? size * 0.04 + mouth * size * 0.08 : size * 0.02,
-              opacity: speaking ? 0.85 : 0,
-            }}
-            transition={{ duration: 0.08 }}
-          />
+          <img src={svg} alt={displayName} width={size - 8} height={size - 8} className="block object-cover h-full w-full select-none" />
         </div>
+
+        {/* Speaking / Listening / Status Badge Overlay */}
         <AnimatePresence>
-          {speaking && (
-            <motion.div
-              initial={{ opacity: 0, y: 4 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0 }}
-              className="absolute -bottom-2 left-1/2 -translate-x-1/2 rounded-full bg-primary/90 px-2 py-0.5 text-[10px] font-medium text-white whitespace-nowrap"
-            >
-              {t("speaking")}
-            </motion.div>
-          )}
+          <motion.div
+            key={currentStatus}
+            initial={{ opacity: 0, y: 4 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0 }}
+            className={cn(
+              "absolute -bottom-3 left-1/2 -translate-x-1/2 rounded-full px-3 py-1 text-[11px] font-semibold whitespace-nowrap border shadow-md transition-all",
+              speaking
+                ? "bg-[#C5A059] text-white border-[#D7B45F] animate-pulse"
+                : muted
+                  ? "bg-slate-800 text-slate-300 border-slate-700"
+                  : blocked
+                    ? "bg-amber-600 text-white border-amber-500"
+                    : "bg-[#111823] text-[#CBD5E1] border-[#263140]"
+            )}
+          >
+            {currentStatus}
+          </motion.div>
         </AnimatePresence>
       </div>
 
-      <p className="mt-4 text-sm font-semibold">{displayName}</p>
-      <p className="text-[11px] text-muted-foreground">{displaySubtitle}</p>
+      <div className="mt-5">
+        <p className="text-base font-bold text-[#F8FAFC] tracking-tight">{displayName}</p>
+        <p className="text-xs text-[#94A3B8] font-medium mt-0.5">{displaySubtitle}</p>
+      </div>
+
+      {blocked && (
+        <div className="mt-2 text-xs text-amber-400 bg-amber-500/10 border border-amber-500/20 px-3 py-1.5 rounded-lg flex items-center gap-1.5">
+          <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+          <span>Browser blocked autoplay. Click Replay to enable voice.</span>
+        </div>
+      )}
 
       {showControls && (
-        <div className="mt-3 flex items-center gap-2">
+        <div className="mt-3.5 flex items-center gap-2">
           <Button
             type="button"
             size="sm"
             variant="outline"
-            className="cursor-pointer gap-1.5 text-xs"
+            className="cursor-pointer gap-1.5 text-xs bg-[#111823] border-[#263140] text-[#CBD5E1] hover:text-white hover:bg-[#18212D] focus-visible:ring-2 focus-visible:ring-[#C5A059]"
             onClick={() => {
-              if (speaking) stop();
-              else if (speakText) speak(speakText);
+              if (speakText) {
+                stop();
+                speak(speakText);
+              }
             }}
-            disabled={!speakText && !speaking}
+            disabled={!speakText}
+            title="Replay latest question"
           >
-            <Volume2 className="h-3.5 w-3.5" />
-            {t("listen")}
+            <RotateCcw className="h-3.5 w-3.5 text-[#C5A059]" />
+            <span>Replay Question</span>
           </Button>
+
           <Button
             type="button"
             size="sm"
             variant="ghost"
-            className="cursor-pointer gap-1.5 text-xs"
+            className="cursor-pointer gap-1.5 text-xs text-[#CBD5E1] hover:text-white hover:bg-[#18212D]"
             onClick={() => {
               if (!muted) stop();
               setMuted((m) => !m);
             }}
+            title={muted ? "Unmute interviewer" : "Mute interviewer"}
           >
-            {muted ? <VolumeX className="h-3.5 w-3.5" /> : <Volume2 className="h-3.5 w-3.5" />}
-            {muted ? t("unmuteVoice") : t("muteVoice")}
+            {muted ? <VolumeX className="h-3.5 w-3.5 text-rose-400" /> : <Volume2 className="h-3.5 w-3.5 text-[#CBD5E1]" />}
+            <span>{muted ? t("unmuteVoice") : t("muteVoice")}</span>
           </Button>
         </div>
       )}
@@ -244,10 +333,10 @@ export function SpeakingAvatar({
 
 /** DiceBear avatar URL helper for profile chips */
 export function dicebearDataUri(seed: string, size = 64) {
-  const avatar = createAvatar(lorelei, {
+  const avatar = createAvatar(notionists, {
     seed,
     size,
-    backgroundColor: ["1e293b", "0f172a"],
+    backgroundColor: ["111823", "080D16"],
   });
   return avatar.toDataUri();
 }

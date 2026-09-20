@@ -30,10 +30,26 @@ export interface AIProvider {
   embedBatch(texts: string[]): Promise<number[][]>;
 }
 
+export type AICategoryError =
+  | "missing_provider_key"
+  | "unsupported_provider"
+  | "provider_authentication_failed"
+  | "provider_rate_limited"
+  | "provider_timeout"
+  | "provider_network_error"
+  | "provider_invalid_model"
+  | "provider_invalid_json"
+  | "resume_schema_validation_failed"
+  | "pdf_parser_import_failed"
+  | "pdf_text_extraction_failed";
+
 export class AIProviderError extends Error {
   provider: string;
-  constructor(provider: string, message: string) {
+  category: AICategoryError;
+  constructor(provider: string, message: string, category: AICategoryError = "provider_network_error") {
     super(`[${provider}] ${message}`);
     this.provider = provider;
+    this.category = category;
   }
 }
+

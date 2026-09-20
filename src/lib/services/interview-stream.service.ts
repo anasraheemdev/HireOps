@@ -175,5 +175,66 @@ async function getInterviewSessionTyped(supabase: Client, sessionId: string) {
   };
 }
 
+export async function initializeInterviewSession(supabase: Client, sessionId: string) {
+  const packed = await getInterviewSessionTyped(supabase, sessionId);
+  if (!packed) throw new Error("Session not found");
+
+  const existingOpener = packed.messages.find((m) => m.role === "assistant");
+  if (existingOpener) {
+    if (packed.session.status === "scheduled") {
+      await supabase
+        .from("interview_sessions")
+        .update({ status: "in_progress", started_at: new Date().toISOString() })
+        .eq("id", sessionId);
+    }
+    return { message: existingOpener, session: { ...packed.session, status: "in_progress" } };
+  }
+
+  const provider = await getAIProvider();
+  const job = packed.session.jobs;
+  const cand = packed.session.candidates;
+
+  const prompt = `You are Amina, AI interviewer for HireOps. Generate a warm, professional opening statement (under 50 words) welcoming the candidate ${cand?.full_name ?? ""} and asking the FIRST structured interview question for the role of ${job?.title ?? "Specialist"}.`;
+
+  let openerText = `Welcome ${cand?.full_name ?? ""} to your interview for the ${job?.title ?? "position"}. Could you please introduce yourself and highlight your key relevant experience for this role?`;
+
+  try {
+    const aiOpener = await provider.chatStream(
+      [
+        { role: "system", content: "You are an AI interviewer. Output plain text opening greeting and first question only." },
+        { role: "user", content: prompt },
+      ],
+      () => {},
+      { temperature: 0.4, maxTokens: 200 }
+    );
+    if (aiOpener?.trim()) {
+      openerText = aiOpener.trim();
+    }
+  } catch {
+    /* fallback to default openerText */
+  }
+
+  const { data: savedOpener, error: saveErr } = await supabase
+    .from("interview_messages")
+    .insert({
+      session_id: sessionId,
+      role: "assistant",
+      content: openerText,
+    })
+    .select("*")
+    .single();
+
+  if (saveErr) throw saveErr;
+
+  const { data: updatedSession } = await supabase
+    .from("interview_sessions")
+    .update({ status: "in_progress", started_at: new Date().toISOString() })
+    .eq("id", sessionId)
+    .select("*")
+    .single();
+
+  return { message: savedOpener, session: updatedSession ?? packed.session };
+}
+
 export { getInterviewSessionTyped as getInterviewSessionForStream };
 

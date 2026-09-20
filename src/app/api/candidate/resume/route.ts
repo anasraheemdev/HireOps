@@ -24,8 +24,9 @@ export async function POST(request: Request) {
       throw new ApiError(400, `Unsupported file format (${fileName}). Upload a valid PDF or DOCX file.`);
     }
 
+    const correlationId = `req_${crypto.randomUUID().slice(0, 8)}`;
     const buffer = Buffer.from(await file.arrayBuffer());
-    const parseResult = await parseResumeBuffer(buffer, mimeType, fileName);
+    const parseResult = await parseResumeBuffer(buffer, mimeType, fileName, { organizationId, correlationId });
 
     const ext = fileName.split(".").pop() || "pdf";
     const privatePath = `${organizationId}/${candidateId}/draft_${crypto.randomUUID()}.${ext}`;

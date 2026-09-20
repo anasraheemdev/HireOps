@@ -57,10 +57,8 @@ export class OpenRouterProvider implements AIProvider {
       ],
       temperature: options?.temperature ?? 0.2,
       max_tokens: options?.maxTokens ?? 2000,
-      // Prefer providers that honor chat/completions + JSON; skip flaky routes.
       provider: {
         allow_fallbacks: true,
-        require_parameters: true,
         ignore: ["Novita"],
       },
     };
@@ -68,47 +66,39 @@ export class OpenRouterProvider implements AIProvider {
     const post = (body: Record<string, unknown>) =>
       fetch(`${BASE_URL}/chat/completions`, {
         method: "POST",
-      signal: AbortSignal.timeout(60000),
+        signal: AbortSignal.timeout(60000),
         headers: this.headers(),
         body: JSON.stringify(body),
       });
 
-    // Prefer json_object when supported; fall back for providers that reject it.
     let res = await post({ ...bodyBase, response_format: { type: "json_object" } });
 
     if (!res.ok) {
       let errBody = await res.text().catch(() => "");
-      const needsPlain =
-        res.status === 400 &&
-        /json_object|response format|not supported|INVALID_REQUEST|require_parameters/i.test(errBody);
 
-      if (needsPlain) {
-        res = await post(bodyBase);
-        if (!res.ok) {
-          errBody = await res.text().catch(() => "");
-          const { provider: _ignored, ...loose } = bodyBase;
-          void _ignored;
-          res = await post(loose);
-          if (!res.ok) errBody = await res.text().catch(() => errBody);
-        }
+      // Try plain completion without response_format constraint
+      res = await post(bodyBase);
+      if (!res.ok) {
+        const { provider: _ignored, ...loose } = bodyBase;
+        void _ignored;
+        res = await post(loose);
+        if (!res.ok) errBody = await res.text().catch(() => errBody);
       }
 
+      // Robust fallback model loop for any API error
       if (!res.ok) {
-        // If 429 rate limit or 503 upstream error, retry with fallback models
-        if (res.status === 429 || res.status === 503) {
-          const fallbackModels = [
-            "meta-llama/llama-3.3-70b-instruct",
-            "google/gemini-2.0-flash-001",
-            "deepseek/deepseek-chat",
-          ];
-          for (const fallbackModel of fallbackModels) {
-            if (fallbackModel === this.chatModel) continue;
-            await new Promise((r) => setTimeout(r, 1000));
-            const retryRes = await post({ ...bodyBase, model: fallbackModel });
-            if (retryRes.ok) {
-              res = retryRes;
-              break;
-            }
+        const fallbackModels = [
+          "meta-llama/llama-3.3-70b-instruct",
+          "google/gemini-2.0-flash-001",
+          "deepseek/deepseek-chat",
+          "qwen/qwen-2.5-72b-instruct",
+        ];
+        for (const fallbackModel of fallbackModels) {
+          if (fallbackModel === this.chatModel) continue;
+          const retryRes = await post({ ...bodyBase, model: fallbackModel });
+          if (retryRes.ok) {
+            res = retryRes;
+            break;
           }
         }
       }

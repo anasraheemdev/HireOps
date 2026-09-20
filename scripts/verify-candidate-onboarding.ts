@@ -9,9 +9,8 @@ import dotenv from "dotenv";
 import { createClient } from "@supabase/supabase-js";
 import { jsPDF } from "jspdf";
 import assert from "node:assert/strict";
-import { extractResumeText } from "../src/lib/ai/extract-text";
-import { parseResumeBuffer } from "../src/lib/services/resume-parse.service";
-import { confirmCandidateProfile } from "../src/lib/services/candidate-portal.service";
+// server-only mock stubbed below
+
 
 dotenv.config({ path: ".env.local", quiet: true });
 
@@ -65,6 +64,10 @@ async function createCandidateAccount(label: string) {
 }
 
 async function runTests() {
+  const { extractResumeText } = await import("../src/lib/ai/extract-text");
+  const { parseResumeBuffer } = await import("../src/lib/services/resume-parse.service");
+  const { confirmCandidateProfile } = await import("../src/lib/services/candidate-portal.service");
+
   console.log("Starting Candidate Onboarding & CV Parsing Integration Tests...\n");
 
   // Test 1: Valid Text PDF Extraction & AI Parsing
@@ -86,7 +89,8 @@ async function runTests() {
   );
   const pdfBuffer = Buffer.from(doc.output("arraybuffer"));
 
-  const pdfText = await extractResumeText(pdfBuffer, "application/pdf", "amal-resume.pdf");
+  const extractRes = await extractResumeText(pdfBuffer, "application/pdf", "amal-resume.pdf");
+  const pdfText = extractRes.text;
   check(pdfText.includes("Amal Al-Harthy") && pdfText.includes("JavaScript"), "Extract text from valid PDF");
 
   const pdfParseResult = await parseResumeBuffer(pdfBuffer, "application/pdf", "amal-resume.pdf");

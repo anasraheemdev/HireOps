@@ -39,6 +39,7 @@ import {
   useAdminRolesQuery,
   type AdminUser,
 } from "@/lib/queries/use-admin";
+import { PermanentDeleteCandidateModal } from "@/components/admin/permanent-delete-candidate-modal";
 
 const statusStyle: Record<string, string> = {
   active: "bg-emerald-500/15 text-emerald-300 border-emerald-500/25",
@@ -302,6 +303,7 @@ export default function AdminUsersPage() {
   const { data: users, isLoading, isError, error, refetch } = useAdminUsersQuery();
   const update = useUpdateUserMutation();
   const [managingUser, setManagingUser] = useState<AdminUser | null>(null);
+  const [deletingUser, setDeletingUser] = useState<AdminUser | null>(null);
 
   return (
     <div>
@@ -399,6 +401,15 @@ export default function AdminUsersPage() {
                       Suspend
                     </DropdownMenuItem>
                   )}
+                  {u.portalRole === "candidate" && (
+                    <DropdownMenuItem
+                      variant="destructive"
+                      className="text-rose-400 focus:text-rose-300 focus:bg-rose-500/10 font-medium"
+                      onClick={() => setDeletingUser(u)}
+                    >
+                      Delete permanently
+                    </DropdownMenuItem>
+                  )}
                 </DropdownMenuContent>
               </DropdownMenu>
             </div>
@@ -408,6 +419,14 @@ export default function AdminUsersPage() {
 
       {managingUser && (
         <ManageUserDialog user={managingUser} open={!!managingUser} onOpenChange={(v) => !v && setManagingUser(null)} />
+      )}
+
+      {deletingUser && (
+        <PermanentDeleteCandidateModal
+          candidateUser={deletingUser}
+          open={!!deletingUser}
+          onOpenChange={(v) => !v && setDeletingUser(null)}
+        />
       )}
     </div>
   );

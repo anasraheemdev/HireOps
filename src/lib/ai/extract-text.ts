@@ -107,12 +107,18 @@ export function extractPdfTextPureJS(buffer: Buffer): string {
   return fullText;
 }
 
+export type ExtractionResult = {
+  text: string;
+  method: "pdf_parse_dynamic" | "pure_js_stream" | "pdf_raw_fallback" | "mammoth_docx" | "plain_text";
+  characterCount: number;
+};
+
 /** Extract plain text from a resume buffer (PDF, DOCX, DOC, TXT). */
 export async function extractResumeText(
   buffer: Buffer,
   mimeType: string,
   fileName: string
-): Promise<string> {
+): Promise<ExtractionResult> {
   const lower = fileName.toLowerCase();
   const isPdf = mimeType === PDF_MIME || lower.endsWith(".pdf");
   const isDocx = mimeType === DOCX_MIME || lower.endsWith(".docx") || lower.endsWith(".doc");
@@ -126,7 +132,8 @@ export async function extractResumeText(
       try {
         const result = await parser.getText();
         if (result?.text && result.text.trim().length > 0) {
-          return result.text.trim();
+          const text = result.text.trim();
+          return { text, method: "pdf_parse_dynamic", characterCount: text.length };
         }
       } finally {
         await parser.destroy().catch(() => undefined);
@@ -139,23 +146,27 @@ export async function extractResumeText(
     try {
       const pureJsText = extractPdfTextPureJS(buffer);
       if (pureJsText && pureJsText.length >= 20) {
-        return pureJsText;
+        return { text: pureJsText, method: "pure_js_stream", characterCount: pureJsText.length };
       }
     } catch (pureJsErr) {
       console.warn("[extractResumeText] Pure JS PDF extraction warning:", pureJsErr);
     }
 
     // 3. Fallback raw text string cleanup
-    const cleaned = buffer.toString("utf-8").replace(/[^\x09\x0A\x0D\x20-\x7E\u0600-\u06FF]/g, " ");
+    const cleaned = buffer.toString("utf-8").replace(/[^\x09\x0A\x0D\x20-\x7E\u00C0-\u024F\u0600-\u06FF\u2000-\u206F]/g, " ");
     const words = cleaned.split(/\s+/).filter((w) => w.length > 2);
-    if (words.length > 10) return words.join(" ");
+    if (words.length > 10) {
+      const text = words.join(" ");
+      return { text, method: "pdf_raw_fallback", characterCount: text.length };
+    }
   }
 
   if (isDocx) {
     try {
       const result = await mammoth.extractRawText({ buffer });
       if (result.value && result.value.trim().length > 0) {
-        return result.value.trim();
+        const text = result.value.trim();
+        return { text, method: "mammoth_docx", characterCount: text.length };
       }
     } catch (docErr) {
       console.warn("[extractResumeText] mammoth DOCX extraction warning:", docErr);
@@ -163,9 +174,10 @@ export async function extractResumeText(
   }
 
   if (isTxt || isDocx) {
-    const text = buffer.toString("utf-8").replace(/[^\x09\x0A\x0D\x20-\x7E\u0600-\u06FF]/g, " ");
-    if (text.trim().length > 0) return text.trim();
+    const text = buffer.toString("utf-8").replace(/[^\x09\x0A\x0D\x20-\x7E\u00C0-\u024F\u0600-\u06FF\u2000-\u206F]/g, " ").trim();
+    if (text.length > 0) return { text, method: "plain_text", characterCount: text.length };
   }
 
   throw new Error(`Unsupported or unreadable resume format: ${mimeType || fileName}`);
 }
+

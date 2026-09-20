@@ -236,3 +236,37 @@ export function useUpsertSecretMutation() {
     },
   });
 }
+
+// ---------------------------------------------------------------------------
+// Candidate Permanent Deletion
+// ---------------------------------------------------------------------------
+
+export type { CandidateDeletionPreview, DeleteCandidateInput } from "@/lib/services/admin.service";
+
+export function useCandidateDeletionPreviewQuery(candidateId: string | null, enabled = true) {
+  return useQuery({
+    queryKey: ["admin", "candidate-deletion-preview", candidateId],
+    queryFn: () => apiFetch<{ data: import("@/lib/services/admin.service").CandidateDeletionPreview }>(`/api/admin/candidates/${candidateId}/deletion-preview`),
+    enabled: !!candidateId && enabled,
+  });
+}
+
+export function useDeleteCandidateMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ candidateId, ...input }: import("@/lib/services/admin.service").DeleteCandidateInput & { candidateId: string }) =>
+      apiFetch<{ data: { success: boolean; candidateId: string; email: string } }>(`/api/admin/candidates/${candidateId}`, {
+        method: "DELETE",
+        body: JSON.stringify(input),
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin", "users"] });
+      queryClient.invalidateQueries({ queryKey: ["admin", "audit"] });
+      queryClient.invalidateQueries({ queryKey: ["candidates"] });
+      queryClient.invalidateQueries({ queryKey: ["applications"] });
+      queryClient.invalidateQueries({ queryKey: ["assessments"] });
+      queryClient.invalidateQueries({ queryKey: ["interviews"] });
+    },
+  });
+}
+

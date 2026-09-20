@@ -2,12 +2,22 @@ import { getAIProvider } from "@/lib/ai";
 import { extractResumeText, isSupportedResumeMime } from "@/lib/ai/extract-text";
 import { PARSE_SYSTEM_PROMPT, parsedResumeSchema, type ParsedResume } from "@/lib/ai/resume-schema";
 import { ApiError } from "@/lib/api/helpers";
+import type { AICategoryError } from "@/lib/ai/types";
+import { AIProviderError } from "@/lib/ai/types";
 
 export type ParseResumeResult = {
   parsed: ParsedResume;
   resumeText: string;
   confidence: number;
   warnings: string[];
+  correlationId: string;
+  diagnostics?: {
+    extractionMethod: string;
+    characterCount: number;
+    providerName: string;
+    durationMs: number;
+    fallbackReasonCategory?: AICategoryError;
+  };
 };
 
 // Recognized skills dictionary for deterministic local parsing fallback
@@ -125,11 +135,43 @@ function computeConfidence(parsed: ParsedResume, resumeText: string): { confiden
   return { confidence: Math.max(15, Math.min(98, score)), warnings };
 }
 
+function classifyErrorCategory(err: unknown): AICategoryError {
+  if (err instanceof AIProviderError && err.category) {
+    return err.category;
+  }
+  const msg = err instanceof Error ? err.message : String(err);
+  if (/API_KEY|api_key|key is not set|missing_provider_key/i.test(msg)) {
+    return "missing_provider_key";
+  }
+  if (/401|403|unauthorized|authentication/i.test(msg)) {
+    return "provider_authentication_failed";
+  }
+  if (/429|rate limit|quota/i.test(msg)) {
+    return "provider_rate_limited";
+  }
+  if (/timeout|abort/i.test(msg)) {
+    return "provider_timeout";
+  }
+  if (/json|no json object/i.test(msg)) {
+    return "provider_invalid_json";
+  }
+  if (/schema|zod/i.test(msg)) {
+    return "resume_schema_validation_failed";
+  }
+  return "provider_network_error";
+}
+
 export async function parseResumeBuffer(
   buffer: Buffer,
   mimeType: string,
-  fileName: string
+  fileName: string,
+  options?: { organizationId?: string; correlationId?: string }
 ): Promise<ParseResumeResult> {
+  const correlationId = options?.correlationId || `req_${crypto.randomUUID().slice(0, 8)}`;
+  const startTime = performance.now();
+
+  console.log(`[CV-Parse Diagnostics][${correlationId}] Request accepted: filename="${fileName}", mime="${mimeType}", size=${buffer.byteLength} bytes`);
+
   if (!buffer || buffer.byteLength === 0) {
     throw new ApiError(400, "Empty document uploaded. Select a valid PDF or DOCX file.");
   }
@@ -141,15 +183,25 @@ export async function parseResumeBuffer(
   }
 
   let resumeText = "";
+  let extractionMethod = "plain_text";
+  let characterCount = 0;
+
   try {
-    resumeText = await extractResumeText(buffer, mimeType, fileName);
+    console.log(`[CV-Parse Diagnostics][${correlationId}] PDF/Text extraction started for "${fileName}"...`);
+    const extractRes = await extractResumeText(buffer, mimeType, fileName);
+    resumeText = extractRes.text;
+    extractionMethod = extractRes.method;
+    characterCount = extractRes.characterCount;
+    console.log(`[CV-Parse Diagnostics][${correlationId}] Text extraction complete: method="${extractionMethod}", characterCount=${characterCount}`);
   } catch (extractErr) {
+    console.error(`[CV-Parse Diagnostics][${correlationId}] Text extraction failed: category="pdf_text_extraction_failed"`, extractErr);
     if (extractErr instanceof ApiError) throw extractErr;
     throw new ApiError(400, `Could not read document contents (${fileName}). Ensure the file is not password-protected or corrupted.`);
   }
 
   const cleanAlphanumeric = resumeText.replace(/[^a-zA-Z0-9\u0600-\u06FF]/g, "");
   if (!resumeText || cleanAlphanumeric.length < 20) {
+    console.warn(`[CV-Parse Diagnostics][${correlationId}] Document text too short (clean length=${cleanAlphanumeric.length}). Unreadable or scanned file.`);
     throw new ApiError(
       400,
       "No readable text found in document. If this is a scanned image or scanned PDF, please upload a text-based PDF or DOCX file."
@@ -158,9 +210,15 @@ export async function parseResumeBuffer(
 
   let raw: unknown = null;
   let aiFailed = false;
+  let providerName = "unknown";
+  let fallbackReasonCategory: AICategoryError | undefined = undefined;
 
   try {
-    const provider = await getAIProvider();
+    console.log(`[CV-Parse Diagnostics][${correlationId}] Selecting AI provider...`);
+    const provider = await getAIProvider(options?.organizationId);
+    providerName = provider.name;
+    console.log(`[CV-Parse Diagnostics][${correlationId}] Provider selected: "${providerName}". Sending chatJSON request...`);
+
     raw = await provider.chatJSON(
       [
         { role: "system", content: PARSE_SYSTEM_PROMPT },
@@ -171,8 +229,10 @@ export async function parseResumeBuffer(
       ],
       { temperature: 0.1, maxTokens: 2500 }
     );
+    console.log(`[CV-Parse Diagnostics][${correlationId}] Provider response received. JSON decoding succeeded.`);
   } catch (aiErr) {
-    console.warn("[parseResumeBuffer] AI provider parse warning (falling back to local parser):", aiErr instanceof Error ? aiErr.message : aiErr);
+    fallbackReasonCategory = classifyErrorCategory(aiErr);
+    console.warn(`[CV-Parse Diagnostics][${correlationId}] AI provider parse failed: category="${fallbackReasonCategory}", details:`, aiErr instanceof Error ? aiErr.message : aiErr);
     aiFailed = true;
   }
 
@@ -182,8 +242,10 @@ export async function parseResumeBuffer(
   if (!aiFailed && raw) {
     try {
       parsed = parsedResumeSchema.parse(raw);
+      console.log(`[CV-Parse Diagnostics][${correlationId}] JSON schema validation succeeded.`);
     } catch (schemaErr) {
-      console.warn("[parseResumeBuffer] Schema validation warning, using local parser fallback:", schemaErr);
+      fallbackReasonCategory = "resume_schema_validation_failed";
+      console.warn(`[CV-Parse Diagnostics][${correlationId}] Schema validation failed: category="${fallbackReasonCategory}". Using local parser fallback.`, schemaErr);
       parsed = parseResumeTextLocally(resumeText, fileName);
     }
   } else {
@@ -207,5 +269,21 @@ export async function parseResumeBuffer(
     confidence = Math.min(45, confidence);
   }
 
-  return { parsed, resumeText, confidence, warnings };
+  const durationMs = Math.round(performance.now() - startTime);
+  console.log(`[CV-Parse Diagnostics][${correlationId}] Processing complete in ${durationMs}ms: method="${extractionMethod}", characters=${characterCount}, provider="${providerName}", fallbackUsed=${aiFailed}, category="${fallbackReasonCategory ?? "none"}"`);
+
+  return {
+    parsed,
+    resumeText,
+    confidence,
+    warnings,
+    correlationId,
+    diagnostics: {
+      extractionMethod,
+      characterCount,
+      providerName,
+      durationMs,
+      fallbackReasonCategory,
+    },
+  };
 }

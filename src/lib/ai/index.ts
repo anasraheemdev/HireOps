@@ -61,29 +61,121 @@ function buildProvider(name: string, config: ProviderConfig = {}): AIProvider {
   }
 }
 
-/** Resolve organization settings on each request; gracefully fall back to process.env if app_secrets fails. */
-export async function getAIProvider(): Promise<AIProvider> {
-  let config: Record<string, string> = {};
+async function fetchOrgSecrets(organizationId: string): Promise<Record<string, string>> {
   try {
-    config = await configuration();
-  } catch (err) {
-    console.warn("[getAIProvider] Could not load organization app_secrets (using process.env fallback):", err instanceof Error ? err.message : err);
+    const { data, error } = await createAdminSupabaseClient()
+      .from("app_secrets")
+      .select("key,value_encrypted")
+      .eq("organization_id", organizationId);
+    if (error || !data) return {};
+    return Object.fromEntries(data.map((s) => [s.key, decryptSecret(s.value_encrypted)]));
+  } catch {
+    return {};
   }
-  const providerName = config.ai_provider || process.env.AI_PROVIDER || 'openrouter';
-  const apiKey = config.ai_api_key || process.env.OPENROUTER_API_KEY || process.env.AI_PROVIDER_KEY || process.env.NEXT_PUBLIC_OPENROUTER_API_KEY;
+}
+
+/** Server-only validation utility to verify AI provider keys, chat model, and configuration source */
+export async function validateAIConfiguration(organizationId?: string) {
+  let config: Record<string, string> = {};
+  let source: "app_secrets" | "process.env" | "fallback" = "process.env";
+
+  if (organizationId) {
+    config = await fetchOrgSecrets(organizationId);
+    if (Object.keys(config).length > 0) source = "app_secrets";
+  }
+
+  if (Object.keys(config).length === 0) {
+    try {
+      config = await configuration();
+      if (Object.keys(config).length > 0) source = "app_secrets";
+    } catch {
+      source = "process.env";
+    }
+  }
+
+  const provider = config.ai_provider || process.env.AI_PROVIDER || "openrouter";
+  const chatModel = config.ai_chat_model || process.env.AI_CHAT_MODEL || "qwen/qwen-2.5-72b-instruct";
+  const apiKey =
+    config.ai_api_key ||
+    process.env.OPENROUTER_API_KEY ||
+    process.env.AI_PROVIDER_KEY ||
+    process.env.NEXT_PUBLIC_OPENROUTER_API_KEY ||
+    process.env.GROQ_API_KEY ||
+    process.env.TOGETHER_API_KEY ||
+    process.env.FIREWORKS_API_KEY ||
+    process.env.DEEPINFRA_API_KEY;
+
+  const hasApiKey = Boolean(apiKey && apiKey.trim().length > 0);
+
+  return {
+    valid: hasApiKey,
+    provider,
+    chatModel,
+    hasApiKey,
+    source,
+    category: hasApiKey ? undefined : ("missing_provider_key" as const),
+    error: hasApiKey ? undefined : `No API key found for provider "${provider}" in app_secrets or environment variables`,
+  };
+}
+
+/** Resolve organization settings on each request; gracefully fall back to process.env if app_secrets fails. */
+export async function getAIProvider(organizationId?: string): Promise<AIProvider> {
+  let config: Record<string, string> = {};
+
+  if (organizationId) {
+    config = await fetchOrgSecrets(organizationId);
+  }
+
+  if (Object.keys(config).length === 0) {
+    try {
+      config = await configuration();
+    } catch (err) {
+      console.warn("[getAIProvider] Could not load organization app_secrets (using process.env fallback):", err instanceof Error ? err.message : err);
+    }
+  }
+
+  const providerName = config.ai_provider || process.env.AI_PROVIDER || "openrouter";
+  const apiKey =
+    config.ai_api_key ||
+    process.env.OPENROUTER_API_KEY ||
+    process.env.AI_PROVIDER_KEY ||
+    process.env.NEXT_PUBLIC_OPENROUTER_API_KEY ||
+    process.env.GROQ_API_KEY ||
+    process.env.TOGETHER_API_KEY ||
+    process.env.FIREWORKS_API_KEY ||
+    process.env.DEEPINFRA_API_KEY;
   const chatModel = config.ai_chat_model || process.env.AI_CHAT_MODEL;
+
   return buildProvider(providerName, { apiKey, chatModel });
 }
 
-export async function getEmbeddingProvider(): Promise<AIProvider> {
+export async function getEmbeddingProvider(organizationId?: string): Promise<AIProvider> {
   let config: Record<string, string> = {};
-  try {
-    config = await configuration();
-  } catch (err) {
-    console.warn("[getEmbeddingProvider] Could not load organization app_secrets (using process.env fallback):", err instanceof Error ? err.message : err);
+
+  if (organizationId) {
+    config = await fetchOrgSecrets(organizationId);
   }
-  const providerName = process.env.AI_EMBEDDING_PROVIDER || config.ai_provider || process.env.AI_PROVIDER || 'openrouter';
-  const apiKey = config.ai_api_key || process.env.OPENROUTER_API_KEY || process.env.AI_PROVIDER_KEY || process.env.NEXT_PUBLIC_OPENROUTER_API_KEY;
+
+  if (Object.keys(config).length === 0) {
+    try {
+      config = await configuration();
+    } catch (err) {
+      console.warn("[getEmbeddingProvider] Could not load organization app_secrets (using process.env fallback):", err instanceof Error ? err.message : err);
+    }
+  }
+
+  const providerName = process.env.AI_EMBEDDING_PROVIDER || config.ai_provider || process.env.AI_PROVIDER || "openrouter";
+  const apiKey =
+    config.ai_api_key ||
+    process.env.OPENROUTER_API_KEY ||
+    process.env.AI_PROVIDER_KEY ||
+    process.env.NEXT_PUBLIC_OPENROUTER_API_KEY ||
+    process.env.GROQ_API_KEY ||
+    process.env.TOGETHER_API_KEY ||
+    process.env.FIREWORKS_API_KEY ||
+    process.env.DEEPINFRA_API_KEY;
   const embeddingModel = config.ai_embed_model || process.env.AI_EMBEDDING_MODEL;
+
   return buildProvider(providerName, { apiKey, embeddingModel });
 }
+

@@ -502,3 +502,275 @@ export async function upsertSecret(supabase: Client, organizationId: string, act
 
   return { id: data.id, key: data.key, masked: maskSecret(encoded), createdAt: data.created_at };
 }
+
+// ---------------------------------------------------------------------------
+// Candidate Permanent Deletion
+// ---------------------------------------------------------------------------
+
+export const deleteCandidateSchema = z.object({
+  confirmation: z.literal("DELETE"),
+  candidateEmail: z.string().email("A valid candidate email address is required"),
+  reason: z.string().min(3, "Please specify a reason for candidate deletion"),
+});
+
+export type DeleteCandidateInput = z.infer<typeof deleteCandidateSchema>;
+
+export type StorageFileInfo = {
+  bucket: string;
+  path: string;
+};
+
+export type CandidateDeletionPreview = {
+  candidate: {
+    id: string;
+    profileId: string | null;
+    authUserId: string | null;
+    fullName: string;
+    email: string;
+  };
+  dependencies: {
+    applications: number;
+    savedJobs: number;
+    resumes: number;
+    documents: number;
+    skills: number;
+    experience: number;
+    education: number;
+    assessments: number;
+    assessmentAssignments: number;
+    interviewSessions: number;
+    interviewMessages: number;
+    offers: number;
+    notifications: number;
+    messages: number;
+    notes: number;
+  };
+  storageFiles: StorageFileInfo[];
+  canDelete: boolean;
+  warnings: string[];
+};
+
+export async function getCandidateDeletionPreview(
+  candidateIdInput: string,
+  actorProfile: { id: string; portalRole: string | null }
+): Promise<CandidateDeletionPreview> {
+  const adminClient = createAdminSupabaseClient();
+
+  // 1. Locate candidate record (candidateId or profileId)
+  let candidateRow: { id: string; full_name: string; email: string; organization_id: string; resume_file_path: string | null } | null = null;
+  const { data: candById } = await adminClient
+    .from("candidates")
+    .select("id, full_name, email, organization_id, resume_file_path")
+    .eq("id", candidateIdInput)
+    .maybeSingle();
+
+  if (candById) {
+    candidateRow = candById;
+  } else {
+    // Check if input is a profile ID
+    const { data: profById } = await adminClient
+      .from("profiles")
+      .select("id, email, candidate_id, organization_id")
+      .eq("id", candidateIdInput)
+      .maybeSingle();
+
+    if (profById?.candidate_id) {
+      const { data: candByProf } = await adminClient
+        .from("candidates")
+        .select("id, full_name, email, organization_id, resume_file_path")
+        .eq("id", profById.candidate_id)
+        .maybeSingle();
+      if (candByProf) candidateRow = candByProf;
+    } else if (profById?.email) {
+      const { data: candByEmail } = await adminClient
+        .from("candidates")
+        .select("id, full_name, email, organization_id, resume_file_path")
+        .eq("email", profById.email)
+        .maybeSingle();
+      if (candByEmail) candidateRow = candByEmail;
+    }
+  }
+
+  if (!candidateRow) {
+    throw new ApiError(404, "Candidate not found");
+  }
+
+  const candidateId = candidateRow.id;
+
+  // 2. Fetch associated profile
+  const { data: profileRow } = await adminClient
+    .from("profiles")
+    .select("id, email, full_name, portal_role, avatar_url")
+    .or(`candidate_id.eq.${candidateId},and(email.eq.${candidateRow.email},organization_id.eq.${candidateRow.organization_id})`)
+    .maybeSingle();
+
+  const profileId = profileRow?.id ?? null;
+  const authUserId = profileRow?.id ?? null;
+
+  const warnings: string[] = [];
+  let canDelete = true;
+
+  if (profileRow && (profileRow.portal_role === "super_admin" || profileRow.portal_role === "hr")) {
+    canDelete = false;
+    warnings.push(`Account holds protected portal role (${profileRow.portal_role}). Deletion is forbidden.`);
+  }
+
+  if (profileId && profileId === actorProfile.id) {
+    canDelete = false;
+    warnings.push("You cannot delete your own account.");
+  }
+
+  // 3. Count dependencies
+  const { count: appsCount } = await adminClient.from("applications").select("id", { count: "exact", head: true }).eq("candidate_id", candidateId);
+  const { count: savedJobsCount } = await adminClient.from("saved_jobs").select("id", { count: "exact", head: true }).eq("candidate_id", candidateId);
+  const { count: docsCount } = await adminClient.from("candidate_documents").select("id", { count: "exact", head: true }).eq("candidate_id", candidateId);
+  const { count: skillsCount } = await adminClient.from("candidate_skills").select("id", { count: "exact", head: true }).eq("candidate_id", candidateId);
+  const { count: expCount } = await adminClient.from("candidate_experience").select("id", { count: "exact", head: true }).eq("candidate_id", candidateId);
+  const { count: eduCount } = await adminClient.from("candidate_education").select("id", { count: "exact", head: true }).eq("candidate_id", candidateId);
+  const { count: sessionsCount } = await adminClient.from("interview_sessions").select("id", { count: "exact", head: true }).eq("candidate_id", candidateId);
+  const { count: offersCount } = await adminClient.from("offers").select("id", { count: "exact", head: true }).eq("candidate_id", candidateId);
+  const { count: messagesCount } = await adminClient.from("portal_messages").select("id", { count: "exact", head: true }).eq("candidate_id", candidateId);
+
+  let assessCount = 0;
+  let interviewMsgsCount = 0;
+
+  const { data: candidateApps } = await adminClient.from("applications").select("id").eq("candidate_id", candidateId);
+  if (candidateApps && candidateApps.length > 0) {
+    const appIds = candidateApps.map((a) => a.id);
+    const { count: assAssignCount } = await adminClient.from("assessment_assignments").select("id", { count: "exact", head: true }).in("application_id", appIds);
+    assessCount = assAssignCount ?? 0;
+  }
+
+  const { data: candidateSessions } = await adminClient.from("interview_sessions").select("id").eq("candidate_id", candidateId);
+  if (candidateSessions && candidateSessions.length > 0) {
+    const sessionIds = candidateSessions.map((s) => s.id);
+    const { count: imCount } = await adminClient.from("interview_messages").select("id", { count: "exact", head: true }).in("session_id", sessionIds);
+    interviewMsgsCount = imCount ?? 0;
+  }
+
+  let notifsCount = 0;
+  let notesCount = 0;
+
+  if (profileId) {
+    const { count: nfc } = await adminClient.from("notifications").select("id", { count: "exact", head: true }).eq("recipient_id", profileId);
+    notifsCount = nfc ?? 0;
+    const { count: ntc } = await adminClient.from("internal_notes").select("id", { count: "exact", head: true }).or(`author_id.eq.${profileId},and(entity_type.eq.candidate,entity_id.eq.${candidateId})`);
+    notesCount = ntc ?? 0;
+  } else {
+    const { count: ntc } = await adminClient.from("internal_notes").select("id", { count: "exact", head: true }).eq("entity_type", "candidate").eq("entity_id", candidateId);
+    notesCount = ntc ?? 0;
+  }
+
+  // 4. Gather storage files
+  const storageFiles: StorageFileInfo[] = [];
+  if (candidateRow.resume_file_path) {
+    storageFiles.push({ bucket: "resumes", path: candidateRow.resume_file_path });
+  }
+
+  const { data: candDocRows } = await adminClient.from("candidate_documents").select("file_path").eq("candidate_id", candidateId);
+  if (candDocRows) {
+    for (const d of candDocRows) {
+      if (d.file_path) storageFiles.push({ bucket: "documents", path: d.file_path });
+    }
+  }
+
+  if (profileRow?.avatar_url && profileRow.avatar_url.includes("/storage/v1/object/public/avatars/")) {
+    const avatarPath = profileRow.avatar_url.split("/avatars/")[1];
+    if (avatarPath) storageFiles.push({ bucket: "avatars", path: avatarPath });
+  }
+
+  return {
+    candidate: {
+      id: candidateId,
+      profileId,
+      authUserId,
+      fullName: candidateRow.full_name,
+      email: candidateRow.email,
+    },
+    dependencies: {
+      applications: appsCount ?? 0,
+      savedJobs: savedJobsCount ?? 0,
+      resumes: candidateRow.resume_file_path ? 1 : 0,
+      documents: docsCount ?? 0,
+      skills: skillsCount ?? 0,
+      experience: expCount ?? 0,
+      education: eduCount ?? 0,
+      assessments: assessCount,
+      assessmentAssignments: assessCount,
+      interviewSessions: sessionsCount ?? 0,
+      interviewMessages: interviewMsgsCount,
+      offers: offersCount ?? 0,
+      notifications: notifsCount,
+      messages: messagesCount ?? 0,
+      notes: notesCount,
+    },
+    storageFiles,
+    canDelete,
+    warnings,
+  };
+}
+
+export async function deleteCandidatePermanently(
+  candidateIdInput: string,
+  actorProfile: { id: string; email: string; portalRole: string | null },
+  input: DeleteCandidateInput
+) {
+  if (actorProfile.portalRole !== "super_admin") {
+    throw new ApiError(403, "Only Super Admin accounts can permanently delete candidates");
+  }
+
+  const preview = await getCandidateDeletionPreview(candidateIdInput, actorProfile);
+
+  if (!preview.canDelete) {
+    throw new ApiError(409, preview.warnings[0] ?? "Candidate deletion is forbidden for this account");
+  }
+
+  if (input.candidateEmail.toLowerCase().trim() !== preview.candidate.email.toLowerCase().trim()) {
+    throw new ApiError(400, `Submitted candidate email does not match "${preview.candidate.email}"`);
+  }
+
+  const adminClient = createAdminSupabaseClient();
+  const candidateId = preview.candidate.id;
+  const authUserId = preview.candidate.authUserId;
+
+  // 1. Run PostgreSQL transactional RPC function
+  const { data: rpcResult, error: rpcError } = await (adminClient.rpc as unknown as (fn: string, args: Record<string, unknown>) => Promise<{ data: unknown; error: { message: string } | null }>)("delete_candidate_permanently", {
+    p_candidate_id: candidateId,
+    p_actor_id: actorProfile.id,
+    p_reason: input.reason,
+  });
+
+  if (rpcError) {
+    throw new ApiError(500, `Database deletion failed: ${rpcError.message}`);
+  }
+
+  // 2. Clean up storage objects
+  let storageCleaned = true;
+  for (const sf of preview.storageFiles) {
+    try {
+      await adminClient.storage.from(sf.bucket).remove([sf.path]);
+    } catch {
+      storageCleaned = false;
+    }
+  }
+
+  // 3. Delete Supabase Auth user (if auth account exists)
+  let authDeleted = true;
+  if (authUserId) {
+    const { error: authErr } = await adminClient.auth.admin.deleteUser(authUserId);
+    if (authErr) {
+      authDeleted = false;
+    }
+  }
+
+  return {
+    success: true,
+    candidateId,
+    email: preview.candidate.email,
+    deletedCounts: preview.dependencies,
+    storageCleaned,
+    authDeleted,
+    rpcResult,
+  };
+}
+

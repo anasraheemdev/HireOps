@@ -37,7 +37,8 @@ export async function POST(request: Request) {
     const safeName = fileName.replace(/[^a-zA-Z0-9._-]/g, "_");
     const storagePath = `${profile.organizationId}/tmp/${tmpId}/${safeName}`;
 
-    const result = await parseResumeBuffer(buffer, mimeType, fileName);
+    const correlationId = `req_${crypto.randomUUID().slice(0, 8)}`;
+    const result = await parseResumeBuffer(buffer, mimeType, fileName, { organizationId: profile.organizationId, correlationId });
 
     let finalStoragePath: string | null = null;
     try {
