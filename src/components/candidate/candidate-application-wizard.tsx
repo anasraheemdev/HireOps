@@ -146,7 +146,7 @@ export function CandidateApplicationWizard({
         nextUrl?: string | null;
       }>(`/api/candidate/assessments/${assignmentId}`, {
         method: "POST",
-        body: JSON.stringify({ answers }),
+        body: JSON.stringify({ action: "submit", answers }),
       });
 
       toast.success("Assessment exam submitted!");

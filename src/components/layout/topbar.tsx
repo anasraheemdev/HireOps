@@ -95,24 +95,24 @@ export function Topbar() {
     "?";
 
   return (
-    <header className="sticky top-0 z-20 h-16 flex items-center gap-3 px-4 lg:px-6 border-b border-border bg-background/70 backdrop-blur-xl">
+    <header className="sticky top-0 z-20 h-16 flex items-center gap-3 px-4 lg:px-6 border-b border-[#263140] bg-[#0C1018]/95 backdrop-blur-xl shrink-0">
       <Sheet>
-        <SheetTrigger render={<Button variant="ghost" size="icon" className="lg:hidden cursor-pointer" />}>
-          <Menu className="h-5 w-5" />
+        <SheetTrigger render={<Button variant="ghost" size="icon" className="lg:hidden cursor-pointer text-[#CBD5E1]" />}>
+          <Menu className="h-5 w-5 text-[#CBD5E1]" />
         </SheetTrigger>
-        <SheetContent side="left" className="p-0 w-72 bg-sidebar border-sidebar-border">
+        <SheetContent side="left" className="p-0 w-72 bg-[#080D16] border-[#263140]">
           <MobileNav />
         </SheetContent>
       </Sheet>
 
-      <div className="hidden md:flex items-center gap-1.5 text-sm text-muted-foreground min-w-0">
+      <div className="hidden md:flex items-center gap-1.5 text-sm text-[#CBD5E1] min-w-0">
         {crumbs.map((c, i) => (
           <span key={c.href} className="flex items-center gap-1.5 min-w-0">
-            {i > 0 && <ChevronRight className="h-3.5 w-3.5 shrink-0" />}
+            {i > 0 && <ChevronRight className="h-3.5 w-3.5 text-[#94A3B8] shrink-0" />}
             {i === crumbs.length - 1 ? (
-              <span className="text-foreground font-medium truncate">{c.label}</span>
+              <span className="text-[#F8FAFC] font-semibold truncate">{c.label}</span>
             ) : (
-              <Link href={c.href} className="hover:text-foreground transition-colors truncate cursor-pointer">
+              <Link href={c.href} className="text-[#CBD5E1] hover:text-white transition-colors truncate cursor-pointer">
                 {c.label}
               </Link>
             )}
@@ -124,18 +124,18 @@ export function Topbar() {
 
       <button
         onClick={toggle}
-        className="hidden sm:flex items-center gap-2 text-sm text-muted-foreground bg-white/5 hover:bg-white/8 border border-white/10 rounded-xl px-3 py-1.5 w-64 transition-colors cursor-pointer"
+        className="hidden sm:flex items-center gap-2 text-sm text-[#94A3B8] bg-[#151C28] hover:bg-[#1C2535] border border-[#263140] rounded-xl px-3 py-1.5 w-64 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C5A059]"
       >
-        <Search className="h-4 w-4" />
-        <span className="truncate">{t("searchShort")}</span>
-        <kbd className="ml-auto text-[10px] font-mono bg-white/10 px-1.5 py-0.5 rounded">⌘K</kbd>
+        <Search className="h-4 w-4 text-[#94A3B8]" />
+        <span className="truncate text-[#CBD5E1]">{t("searchShort")}</span>
+        <kbd className="ml-auto text-[10px] font-mono text-[#CBD5E1] bg-white/10 border border-white/10 px-1.5 py-0.5 rounded">⌘K</kbd>
       </button>
 
-      <Button variant="ghost" size="icon" className="sm:hidden cursor-pointer" onClick={toggle}>
+      <Button variant="ghost" size="icon" className="sm:hidden cursor-pointer text-[#CBD5E1]" onClick={toggle}>
         <Search className="h-5 w-5" />
       </Button>
 
-      <LanguageSwitcher variant="compact" />
+      <LanguageSwitcher variant="compact" className="text-[#CBD5E1] hover:text-white" />
 
       <div className="hidden md:flex items-center gap-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1">
         <span className="relative flex h-2 w-2">
@@ -146,32 +146,32 @@ export function Topbar() {
       </div>
 
       <Popover>
-        <PopoverTrigger render={<Button variant="ghost" size="icon" className="relative cursor-pointer" />}>
-          <Bell className="h-5 w-5" />
+        <PopoverTrigger render={<Button variant="ghost" size="icon" className="relative cursor-pointer text-[#CBD5E1] hover:text-white hover:bg-[#18212D]" />}>
+          <Bell className="h-5 w-5 text-[#CBD5E1]" />
           {unreadCount > 0 && (
             <span className="absolute top-1 right-1 min-w-[16px] h-4 px-1 rounded-full bg-rose-500 text-white text-[9px] font-semibold flex items-center justify-center">
               {unreadCount > 9 ? "9+" : unreadCount}
             </span>
           )}
         </PopoverTrigger>
-        <PopoverContent align="end" className="w-80 p-0 glass-panel-strong border-white/10">
-          <div className="px-4 py-3 border-b border-white/10 flex items-center justify-between">
-            <p className="text-sm font-semibold">{t("notifications")}</p>
-            <Badge variant="secondary" className="text-[10px]">
+        <PopoverContent align="end" className="w-80 p-0 bg-[#111823] border border-[#263140] text-[#F8FAFC]">
+          <div className="px-4 py-3 border-b border-[#263140] flex items-center justify-between">
+            <p className="text-sm font-semibold text-[#F8FAFC]">{t("notifications")}</p>
+            <Badge variant="secondary" className="text-[10px] bg-[#18212D] text-[#C5A059]">
               {unreadCount} new
             </Badge>
           </div>
           <div className="max-h-80 overflow-y-auto scrollbar-thin">
             {notifications.length === 0 && (
-              <div className="px-4 py-8 text-center text-xs text-muted-foreground">{t("noNotifications")}</div>
+              <div className="px-4 py-8 text-center text-xs text-[#94A3B8]">{t("noNotifications")}</div>
             )}
             {notifications.slice(0, 20).map((n) => (
               <button
                 key={n.id}
                 onClick={() => !n.is_read && markRead.mutate(n.id)}
                 className={cn(
-                  "w-full text-left px-4 py-3 border-b border-white/5 last:border-0 hover:bg-white/5 transition-colors cursor-pointer",
-                  !n.is_read && "bg-white/[0.03]"
+                  "w-full text-left px-4 py-3 border-b border-[#263140]/50 last:border-0 hover:bg-[#18212D] transition-colors cursor-pointer",
+                  !n.is_read && "bg-[#18212D]/60"
                 )}
               >
                 <div className="flex gap-3">
@@ -181,12 +181,12 @@ export function Topbar() {
                     </AvatarFallback>
                   </Avatar>
                   <div className="min-w-0">
-                    <p className="text-xs font-medium truncate flex items-center gap-1.5">
+                    <p className="text-xs font-medium truncate flex items-center gap-1.5 text-[#F8FAFC]">
                       {n.title}
                       {!n.is_read && <span className="h-1.5 w-1.5 rounded-full bg-blue-400 shrink-0" />}
                     </p>
-                    {n.body && <p className="text-[11px] text-muted-foreground line-clamp-2">{n.body}</p>}
-                    <p className="text-[10px] text-muted-foreground/70 mt-0.5">{formatRelativeTime(n.created_at)}</p>
+                    {n.body && <p className="text-[11px] text-[#CBD5E1] line-clamp-2">{n.body}</p>}
+                    <p className="text-[10px] text-[#94A3B8] mt-0.5">{formatRelativeTime(n.created_at)}</p>
                   </div>
                 </div>
               </button>
@@ -197,7 +197,7 @@ export function Topbar() {
 
       <DropdownMenu>
         <DropdownMenuTrigger className="flex items-center gap-2 pl-1 pr-1 cursor-pointer">
-          <Avatar className="h-8 w-8 border border-white/10">
+          <Avatar className="h-8 w-8 border border-[#263140] ring-1 ring-[#C5A059]/40 hover:ring-[#C5A059]">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src={profileAvatar} alt="" className="h-full w-full object-cover" />
             <AvatarFallback className="gradient-brand text-white text-xs font-semibold">{initials}</AvatarFallback>

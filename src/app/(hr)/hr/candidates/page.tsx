@@ -11,13 +11,14 @@ import {
   MapPin,
   AlertTriangle,
   Users,
-  ThumbsUp,
-  ThumbsDown,
   Sparkles,
   Mail,
   Briefcase,
   Plus,
   Loader2,
+  CheckCircle2,
+  Calendar,
+  XCircle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -33,19 +34,28 @@ import {
 } from "@/components/ui/select";
 import { StageBadge, MatchBadge } from "@/components/shared/stage-badge";
 import { ScoreRing } from "@/components/shared/score-ring";
-import { CandidateScoringPanel } from "@/components/candidates/scoring-panel";
 import { EntityWorkspace } from "@/components/workspace/entity-workspace";
 import { DetailPanel } from "@/components/workspace/detail-panel";
 import { DataTable } from "@/components/workspace/data-table";
 import { useFavorites } from "@/components/workspace/favorites-store";
 import { useRecent } from "@/components/workspace/recent-store";
-import { useCandidatesQuery, useCandidateQuery, useApplicationDecisionMutation } from "@/lib/queries/use-candidates";
+import {
+  useCandidatesQuery,
+  useHrCandidateReviewQuery,
+  useApplicationDecisionMutation,
+} from "@/lib/queries/use-candidates";
 import { useCreateCandidateMutation } from "@/lib/queries/use-ai";
 import { useJobsQuery } from "@/lib/queries/use-jobs";
 import type { Candidate, PipelineStage } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { Skeleton } from "@/components/ui/skeleton";
+import { CandidateReviewTabs } from "@/components/candidates/candidate-review-tabs";
+import {
+  SelectCandidateModal,
+  ScheduleHumanInterviewModal,
+  RejectCandidateModal,
+} from "@/components/candidates/candidate-action-modals";
 
 const stages: (PipelineStage | "All Stages")[] = [
   "All Stages",
@@ -60,224 +70,257 @@ const stages: (PipelineStage | "All Stages")[] = [
 ];
 
 function CandidateDetail({ id }: { id: string }) {
-  const { data: candidate, isLoading, isError } = useCandidateQuery(id);
-  const decision = useApplicationDecisionMutation();
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const candidateId = searchParams.get("candidateId") || searchParams.get("id") || id;
+  const applicationId = searchParams.get("applicationId");
+
+  const { data, isLoading, isError } = useHrCandidateReviewQuery(candidateId, applicationId);
   const { toggle, isFavorite } = useFavorites();
   const { push } = useRecent();
+
   const [tab, setTab] = useState("overview");
 
+  // Modals state
+  const [selectModalOpen, setSelectModalOpen] = useState(false);
+  const [scheduleModalOpen, setScheduleModalOpen] = useState(false);
+  const [rejectModalOpen, setRejectModalOpen] = useState(false);
+
   useEffect(() => {
-    if (candidate) {
+    if (data?.candidate) {
       push({
-        id: candidate.id,
+        id: data.candidate.id,
         type: "candidate",
-        label: candidate.name,
-        href: `/hr/candidates?id=${candidate.id}`,
+        label: data.candidate.fullName,
+        href: `/hr/candidates?id=${data.candidate.id}`,
       });
     }
-  }, [candidate, push]);
+  }, [data, push]);
 
-  const handleDecision = (type: "shortlist" | "reject") => {
-    if (!candidate?.applicationId) {
-      toast.error("No active application");
-      return;
-    }
-    decision.mutate(
-      { applicationId: candidate.applicationId, decision: type },
-      {
-        onSuccess: () =>
-          toast[type === "shortlist" ? "success" : "error"](
-            type === "shortlist" ? "Shortlisted" : "Rejected"
-          ),
-        onError: (err) => toast.error(err instanceof Error ? err.message : "Failed"),
-      }
-    );
+  const handleSelectApplication = (appId: string | null) => {
+    if (!appId) return;
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("candidateId", candidateId);
+    params.set("applicationId", appId);
+    params.set("id", candidateId);
+    router.replace(`/hr/candidates?${params.toString()}`, { scroll: false });
   };
 
   if (isLoading) {
     return (
-      <DetailPanel title="Loading…">
-        <Skeleton className="h-24 w-full" />
-      </DetailPanel>
-    );
-  }
-  if (isError || !candidate) {
-    return (
-      <DetailPanel title="Candidate">
-        <p className="text-xs text-muted-foreground">Could not load candidate.</p>
+      <DetailPanel title="Loading candidate review…">
+        <div className="space-y-3 p-2">
+          <Skeleton className="h-16 w-full" />
+          <Skeleton className="h-32 w-full" />
+        </div>
       </DetailPanel>
     );
   }
 
+  if (isError || !data) {
+    return (
+      <DetailPanel title="Candidate Review">
+        <div className="p-4 text-center text-xs text-muted-foreground">
+          Could not load candidate review data. Please verify candidate ID and permissions.
+        </div>
+      </DetailPanel>
+    );
+  }
+
+  const { candidate, application, applicationsList } = data;
   const fav = isFavorite(candidate.id, "candidate");
 
   return (
-    <DetailPanel
-      title={candidate.name}
-      subtitle={`${candidate.title} · ${candidate.appliedFor}`}
-      actions={
-        <>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-7 w-7 cursor-pointer"
-            onClick={() =>
-              toggle({
-                id: candidate.id,
-                type: "candidate",
-                label: candidate.name,
-                href: `/hr/candidates?id=${candidate.id}`,
-              })
-            }
-          >
-            <Star className={cn("h-3.5 w-3.5", fav && "fill-amber-400 text-amber-400")} />
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-7 text-[11px] text-rose-400 cursor-pointer"
-            disabled={decision.isPending}
-            onClick={() => handleDecision("reject")}
-          >
-            <ThumbsDown className="h-3 w-3" />
-          </Button>
-          <Button
-            size="sm"
-            className="h-7 text-[11px] gradient-brand text-white cursor-pointer"
-            disabled={decision.isPending}
-            onClick={() => handleDecision("shortlist")}
-          >
-            <ThumbsUp className="h-3 w-3" />
-          </Button>
-        </>
-      }
-      tabs={[
-        { id: "overview", label: "Overview" },
-        { id: "skills", label: "Skills" },
-        { id: "experience", label: "Experience" },
-        { id: "scoring", label: "Scoring" },
-      ]}
-      activeTab={tab}
-      onTabChange={setTab}
-    >
-      {tab === "overview" && (
-        <div className="space-y-3">
-          <div className="flex items-center gap-3">
-            <Avatar className="h-12 w-12 border border-white/10">
-              <AvatarFallback className={cn("bg-gradient-to-br text-white text-sm", candidate.avatarColor)}>
-                {candidate.initials}
-              </AvatarFallback>
-            </Avatar>
-            <div>
-              <StageBadge stage={candidate.stage} />
-              <p className="text-[11px] text-muted-foreground mt-1 flex items-center gap-1">
-                <MapPin className="h-3 w-3" /> {candidate.location}
-              </p>
-            </div>
-            <div className="ml-auto">
-              <ScoreRing score={candidate.matchScore} size={56} />
-            </div>
+    <>
+      <DetailPanel
+        title={candidate.fullName}
+        subtitle={`${candidate.currentRole || candidate.headline || "Candidate"} ${
+          application ? `· ${application.jobTitle}` : ""
+        }`}
+        actions={
+          <div className="flex items-center gap-1">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7 cursor-pointer"
+              title="Bookmark candidate"
+              onClick={() =>
+                toggle({
+                  id: candidate.id,
+                  type: "candidate",
+                  label: candidate.fullName,
+                  href: `/hr/candidates?id=${candidate.id}`,
+                })
+              }
+            >
+              <Star className={cn("h-3.5 w-3.5", fav && "fill-amber-400 text-amber-400")} />
+            </Button>
+
+            {application && (
+              <>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-7 text-[11px] text-rose-400 border-rose-500/30 hover:bg-rose-500/10 cursor-pointer gap-1"
+                  onClick={() => setRejectModalOpen(true)}
+                >
+                  <XCircle className="h-3 w-3" /> Reject
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-7 text-[11px] text-indigo-300 border-indigo-500/30 hover:bg-indigo-500/10 cursor-pointer gap-1"
+                  onClick={() => setScheduleModalOpen(true)}
+                >
+                  <Calendar className="h-3 w-3" /> Schedule Interview
+                </Button>
+                <Button
+                  size="sm"
+                  className="h-7 text-[11px] bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer gap-1"
+                  onClick={() => setSelectModalOpen(true)}
+                >
+                  <CheckCircle2 className="h-3 w-3" /> Select Candidate
+                </Button>
+              </>
+            )}
           </div>
-          <div className="grid grid-cols-2 gap-2 text-[11px]">
-            <div className="rounded-md border border-white/8 bg-white/[0.02] p-2">
-              <p className="text-muted-foreground">Experience</p>
-              <p className="font-medium">{candidate.experienceYears} years</p>
-            </div>
-            <div className="rounded-md border border-white/8 bg-white/[0.02] p-2">
-              <p className="text-muted-foreground">Applied</p>
-              <p className="font-medium">{candidate.appliedDate}</p>
-            </div>
-            <div className="rounded-md border border-white/8 bg-white/[0.02] p-2 col-span-2">
-              <p className="text-muted-foreground flex items-center gap-1">
-                <Mail className="h-3 w-3" /> Email
-              </p>
-              <p className="font-medium truncate">{candidate.email ?? "—"}</p>
-            </div>
-          </div>
-          {candidate.aiRecommendation && (
-            <div>
-              <p className="text-[11px] font-semibold mb-1">AI recommendation</p>
-              <p className="text-[12px] text-muted-foreground whitespace-pre-wrap">{candidate.aiRecommendation}</p>
-            </div>
-          )}
-          {candidate.strengths?.length > 0 && (
-            <div>
-              <p className="text-[11px] font-semibold mb-1">Strengths</p>
-              <ul className="text-[11px] text-muted-foreground list-disc pl-4">
-                {candidate.strengths.slice(0, 5).map((s) => (
-                  <li key={s}>{s}</li>
+        }
+        tabs={[
+          { id: "overview", label: "Overview" },
+          { id: "skills", label: "Skills" },
+          { id: "experience", label: "Experience" },
+          { id: "assessment", label: "Assessment" },
+          { id: "interview", label: "Interview" },
+          { id: "scoring", label: "Scoring" },
+        ]}
+        activeTab={tab}
+        onTabChange={setTab}
+      >
+        {/* Application Selector if multiple applications exist */}
+        {applicationsList.length > 0 && (
+          <div className="mb-3 rounded-md border border-white/10 bg-white/[0.02] p-2 flex items-center justify-between text-xs">
+            <span className="text-muted-foreground font-medium">Job Application:</span>
+            <Select
+              value={application?.id || applicationsList[0]?.id}
+              onValueChange={handleSelectApplication}
+            >
+              <SelectTrigger className="h-7 w-[260px] text-xs bg-white/5 border-white/10">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {applicationsList.map((app) => (
+                  <SelectItem key={app.id} value={app.id} className="text-xs">
+                    {app.jobTitle} ({app.department || "General"}) · {app.stage}
+                  </SelectItem>
                 ))}
-              </ul>
-            </div>
-          )}
-        </div>
+              </SelectContent>
+            </Select>
+          </div>
+        )}
+
+        <CandidateReviewTabs data={data} activeTab={tab} />
+      </DetailPanel>
+
+      {/* Action Modals */}
+      {application && (
+        <>
+          <SelectCandidateModal
+            open={selectModalOpen}
+            onOpenChange={setSelectModalOpen}
+            candidateName={candidate.fullName}
+            applicationId={application.id}
+            jobTitle={application.jobTitle}
+          />
+          <ScheduleHumanInterviewModal
+            open={scheduleModalOpen}
+            onOpenChange={setScheduleModalOpen}
+            candidateName={candidate.fullName}
+            applicationId={application.id}
+            jobTitle={application.jobTitle}
+          />
+          <RejectCandidateModal
+            open={rejectModalOpen}
+            onOpenChange={setRejectModalOpen}
+            candidateName={candidate.fullName}
+            applicationId={application.id}
+            jobTitle={application.jobTitle}
+          />
+        </>
       )}
-      {tab === "skills" && (
-        <div className="flex flex-wrap gap-1.5">
-          {(candidate.skills ?? []).map((s) => (
-            <span key={s} className="text-[11px] rounded-full border border-white/10 bg-white/5 px-2 py-0.5">
-              {s}
-            </span>
-          ))}
-          {(candidate.skills ?? []).length === 0 && (
-            <p className="text-[11px] text-muted-foreground">No skills listed</p>
-          )}
-        </div>
-      )}
-      {tab === "experience" && (
-        <div className="space-y-2">
-          <p className="text-[12px] flex items-center gap-1.5">
-            <Briefcase className="h-3.5 w-3.5 text-primary" /> {candidate.title}
-          </p>
-          <p className="text-[11px] text-muted-foreground">{candidate.experienceYears} years · {candidate.department}</p>
-        </div>
-      )}
-      {tab === "scoring" && <CandidateScoringPanel candidate={candidate} />}
-    </DetailPanel>
+    </>
   );
 }
 
 function CandidateContext({ id }: { id: string }) {
-  const { data: candidate } = useCandidateQuery(id);
+  const searchParams = useSearchParams();
+  const candidateId = searchParams.get("candidateId") || searchParams.get("id") || id;
+  const applicationId = searchParams.get("applicationId");
+
+  const { data } = useHrCandidateReviewQuery(candidateId, applicationId);
+
   return (
     <DetailPanel title="AI & Activity" subtitle="Insights and timeline">
-      <div className="space-y-3">
-        <div className="rounded-md border border-primary/20 bg-primary/10 p-2.5">
-          <p className="text-[11px] font-semibold flex items-center gap-1 mb-1">
+      <div className="space-y-3.5 text-xs">
+        {/* Match Insight */}
+        <div className="rounded-md border border-primary/20 bg-primary/10 p-2.5 space-y-1.5">
+          <p className="text-[11px] font-semibold flex items-center gap-1 text-primary">
             <Sparkles className="h-3 w-3 text-primary" /> Match insight
           </p>
-          <p className="text-[11px] text-muted-foreground">
-            {candidate
-              ? `${candidate.name} scores ${candidate.matchScore}% against ${candidate.appliedFor}. Review skills alignment and schedule AI interview if stage allows.`
-              : "Select a candidate for insights."}
+          <p className="text-[11px] text-muted-foreground leading-relaxed">
+            {data?.application
+              ? `${data.candidate.fullName} scores ${data.application.matchScore ?? "N/A"}% against ${data.application.jobTitle}. ${
+                  data.application.matchExplanation || "Review skills and experience alignment below."
+                }`
+              : "Select a candidate for AI match insights."}
           </p>
           <Button
             size="sm"
             variant="outline"
-            className="mt-2 h-7 text-[11px] cursor-pointer"
+            className="mt-1 h-7 text-[11px] cursor-pointer"
             onClick={() =>
               window.dispatchEvent(
                 new CustomEvent("open-ai-assistant", {
-                  detail: { prompt: candidate ? `Summarize candidate ${candidate.name}` : "Summarize pipeline" },
+                  detail: {
+                    prompt: data?.candidate
+                      ? `Summarize candidate ${data.candidate.fullName} for role ${data.application?.jobTitle || "Job"}`
+                      : "Summarize candidate pipeline",
+                  },
                 })
               )
             }
           >
-            Ask AI
+            Ask AI Assistant
           </Button>
         </div>
+
+        {/* Real Dynamic Timeline */}
         <div>
-          <p className="text-[11px] font-semibold mb-1.5">Timeline</p>
-          <ul className="space-y-2 text-[11px] text-muted-foreground">
-            <li className="border-l-2 border-primary/40 pl-2">Applied · {candidate?.appliedDate ?? "—"}</li>
-            <li className="border-l-2 border-white/15 pl-2">Stage · {candidate?.stage ?? "—"}</li>
-            <li className="border-l-2 border-white/15 pl-2">Match score · {candidate?.matchScore ?? "—"}%</li>
-          </ul>
+          <p className="text-[11px] font-semibold mb-2">Recruitment Activity Timeline</p>
+          {data?.timeline && data.timeline.length > 0 ? (
+            <ul className="space-y-2 text-[11px]">
+              {data.timeline.map((item) => (
+                <li
+                  key={item.id}
+                  className="border-l-2 border-primary/40 pl-2.5 py-0.5 space-y-0.5"
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="font-semibold text-[11px]">{item.title}</span>
+                    <span className="text-[10px] text-muted-foreground">{item.date}</span>
+                  </div>
+                  <p className="text-[10px] text-muted-foreground">{item.description}</p>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="text-[11px] text-muted-foreground italic">No timeline events recorded.</p>
+          )}
         </div>
-        <div>
-          <p className="text-[11px] font-semibold mb-1.5">Notes</p>
-          <p className="text-[11px] text-muted-foreground">
-            Use recruiter notes from the interview workspace. Activity feeds sync via notifications.
+
+        {/* Recruiter Notes Info */}
+        <div className="pt-2 border-t border-white/5">
+          <p className="text-[11px] font-semibold mb-1">Recruiter Access & Privacy</p>
+          <p className="text-[10px] text-muted-foreground leading-relaxed">
+            Hiring decision notes and internal interview instructions are strictly isolated for HR staff and never exposed on the candidate portal.
           </p>
         </div>
       </div>

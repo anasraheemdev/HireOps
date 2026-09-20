@@ -52,6 +52,7 @@ export async function requireCandidateId(
 }
 
 export async function listMyApplications(supabase: Client, candidateId: string) {
+  const admin = createAdminSupabaseClient();
   const { data, error } = await supabase
     .from("applications")
     .select(
@@ -61,9 +62,32 @@ export async function listMyApplications(supabase: Client, candidateId: string) 
     .eq("candidate_id", candidateId)
     .order("applied_date", { ascending: false });
   if (error) throw error;
+
+  const appIds = (data ?? []).map((r) => r.id);
+  const [{ data: humanInts }, { data: decisions }] = await Promise.all([
+    appIds.length > 0
+      ? admin
+          .from("human_interviews")
+          .select("application_id, scheduled_at, timezone, interview_type, meeting_link, location, candidate_instructions, interviewer_name")
+          .in("application_id", appIds)
+      : { data: [] },
+    appIds.length > 0
+      ? admin
+          .from("hiring_decisions")
+          .select("application_id, decision, candidate_message, decided_at")
+          .in("application_id", appIds)
+      : { data: [] },
+  ]);
+
+  const humanIntMap = new Map((humanInts ?? []).map((h) => [h.application_id, h]));
+  const decisionMap = new Map((decisions ?? []).map((d) => [d.application_id, d]));
+
   return (data ?? []).map((row) => {
     const job = Array.isArray(row.jobs) ? row.jobs[0] : row.jobs;
     const dept = job && (Array.isArray(job.departments) ? job.departments[0] : job.departments);
+    const humanInt = humanIntMap.get(row.id);
+    const dec = decisionMap.get(row.id);
+
     return {
       id: row.id,
       stage: row.stage as ApplicationStage,
@@ -77,6 +101,24 @@ export async function listMyApplications(supabase: Client, candidateId: string) 
       location: job?.location ?? null,
       jobStatus: job?.status ?? null,
       department: dept?.name ?? null,
+      humanInterview: humanInt
+        ? {
+            scheduledAt: humanInt.scheduled_at,
+            timezone: humanInt.timezone,
+            interviewType: humanInt.interview_type,
+            meetingLink: humanInt.meeting_link,
+            location: humanInt.location,
+            candidateInstructions: humanInt.candidate_instructions,
+            interviewerName: humanInt.interviewer_name,
+          }
+        : null,
+      hiringDecision: dec
+        ? {
+            decision: dec.decision,
+            candidateMessage: dec.candidate_message,
+            decidedAt: dec.decided_at,
+          }
+        : null,
     };
   });
 }

@@ -27,8 +27,8 @@ export function PortalSidebar({ portal }: { portal: PortalRole }) {
   }));
 
   return (
-    <aside className="hidden lg:flex w-64 shrink-0 flex-col border-r border-white/10 bg-sidebar/80 backdrop-blur-xl">
-      <div className="px-5 py-5 border-b border-white/10">
+    <aside className="hidden lg:flex w-64 shrink-0 flex-col border-r border-[#263140] bg-[#080D16] backdrop-blur-xl">
+      <div className="px-5 py-5 border-b border-[#263140]">
         <Link
           href={portal === "super_admin" ? "/admin" : portal === "candidate" ? "/candidate" : "/hr/dashboard"}
           className="flex items-center gap-3"
@@ -37,8 +37,8 @@ export function PortalSidebar({ portal }: { portal: PortalRole }) {
             <HireOpsLogo size={36} variant="full" className="h-9 w-9" />
           </div>
           <div className="min-w-0">
-            <p className="text-sm font-semibold tracking-tight">{BRAND.name}</p>
-            <p className="text-[10px] text-muted-foreground truncate">{portalTitles[portal]}</p>
+            <p className="text-[15px] font-semibold tracking-tight text-[#F8FAFC]">{BRAND.name}</p>
+            <p className="text-[11px] text-[#94A3B8] font-medium truncate" title={portalTitles[portal]}>{portalTitles[portal]}</p>
           </div>
         </Link>
       </div>
@@ -46,7 +46,7 @@ export function PortalSidebar({ portal }: { portal: PortalRole }) {
         <nav className="space-y-6">
           {groups.map((group) => (
             <div key={group.title}>
-              <p className="px-3 mb-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70">
+              <p className="px-3 mb-2 text-[10px] font-semibold uppercase tracking-wider text-[#94A3B8]">
                 {groupTitle(group.title)}
               </p>
               <ul className="space-y-0.5">
@@ -61,23 +61,16 @@ export function PortalSidebar({ portal }: { portal: PortalRole }) {
                       <Link
                         href={item.href}
                         className={cn(
-                          "relative flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm transition-colors duration-200 cursor-pointer",
+                          "relative flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium transition-colors duration-200 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C5A059]",
                           active
-                            ? "text-foreground bg-white/10"
-                            : "text-muted-foreground hover:text-foreground hover:bg-white/5"
+                            ? "text-white bg-[#202733] border-l-2 border-[#C5A059]"
+                            : "text-[#CBD5E1] hover:text-white hover:bg-[#18212D]"
                         )}
                       >
-                        {active && (
-                          <motion.span
-                            layoutId="nav-active"
-                            className="absolute inset-0 rounded-lg bg-primary/15 border border-primary/20"
-                            transition={{ type: "spring", stiffness: 380, damping: 30 }}
-                          />
-                        )}
-                        <Icon className="relative h-4 w-4 shrink-0" />
-                        <span className="relative flex-1 truncate">{navLabel(item.href, item.label)}</span>
+                        <Icon className={cn("relative h-4 w-4 shrink-0", active ? "text-[#C5A059]" : "text-[#CBD5E1]")} />
+                        <span className={cn("relative flex-1 truncate", active ? "font-semibold text-white" : "text-[#CBD5E1]")}>{navLabel(item.href, item.label)}</span>
                         {item.badge && (
-                          <span className="relative text-[9px] px-1.5 py-0.5 rounded-full bg-primary/20 text-primary">
+                          <span className="relative text-[9px] px-1.5 py-0.5 rounded-full bg-[#C5A059]/20 text-[#D7B45F] font-semibold">
                             {item.badge}
                           </span>
                         )}
@@ -90,7 +83,7 @@ export function PortalSidebar({ portal }: { portal: PortalRole }) {
           ))}
         </nav>
       </ScrollArea>
-      <div className="p-4 border-t border-white/10 text-[10px] text-muted-foreground">
+      <div className="p-4 border-t border-[#263140] text-[11px] text-[#94A3B8] font-medium truncate" title={profile?.organizationName ?? BRAND.tagline}>
         {profile?.organizationName ?? BRAND.tagline}
       </div>
     </aside>

@@ -22,22 +22,22 @@ export function MobileNav() {
   }));
 
   return (
-    <div className="flex flex-col h-full">
-      <div className="px-4 py-4 border-b border-white/10 flex items-center gap-3">
+    <div className="flex flex-col h-full bg-[#080D16]">
+      <div className="px-4 py-4 border-b border-[#263140] flex items-center gap-3">
         <div className="h-8 w-8 rounded-lg overflow-hidden ring-1 ring-white/10">
           <HireOpsLogo size={32} variant="full" className="h-8 w-8" />
         </div>
         <div className="min-w-0 flex-1">
-          <p className="font-semibold text-sm truncate">{BRAND.name}</p>
-          <p className="text-[10px] text-muted-foreground truncate">{BRAND.tagline}</p>
+          <p className="font-semibold text-sm truncate text-[#F8FAFC]">{BRAND.name}</p>
+          <p className="text-[10px] text-[#94A3B8] truncate" title={BRAND.tagline}>{BRAND.tagline}</p>
         </div>
-        <LanguageSwitcher variant="compact" />
+        <LanguageSwitcher variant="compact" className="text-[#CBD5E1] hover:text-white" />
       </div>
       <ScrollArea className="flex-1 p-3">
         <nav className="space-y-5">
           {groups.map((group) => (
             <div key={group.title}>
-              <p className="px-2 mb-1.5 text-[10px] uppercase tracking-wider text-muted-foreground">
+              <p className="px-2 mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-[#94A3B8]">
                 {groupTitle(group.title)}
               </p>
               <ul className="space-y-0.5">
@@ -52,11 +52,13 @@ export function MobileNav() {
                       <Link
                         href={item.href}
                         className={cn(
-                          "flex items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm cursor-pointer transition-colors",
-                          active ? "bg-white/10 text-foreground" : "text-muted-foreground hover:bg-white/5"
+                          "flex items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm cursor-pointer transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C5A059]",
+                          active
+                            ? "bg-[#202733] text-white font-medium border-l-2 border-[#C5A059]"
+                            : "text-[#CBD5E1] hover:bg-[#18212D] hover:text-white"
                         )}
                       >
-                        <Icon className="h-4 w-4 shrink-0" />
+                        <Icon className={cn("h-4 w-4 shrink-0", active ? "text-[#C5A059]" : "text-[#CBD5E1]")} />
                         <span className="truncate">{navLabel(item.href, item.label)}</span>
                       </Link>
                     </li>
@@ -67,7 +69,7 @@ export function MobileNav() {
           ))}
         </nav>
       </ScrollArea>
-      <div className="px-4 py-3 border-t border-white/10 text-[10px] text-muted-foreground">
+      <div className="px-4 py-3 border-t border-[#263140] text-[10px] text-[#94A3B8]">
         {BRAND.copyright}
       </div>
     </div>

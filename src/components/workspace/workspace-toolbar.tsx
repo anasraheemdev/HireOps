@@ -99,12 +99,12 @@ export function WorkspaceToolbar({ portal }: { portal: PortalRole }) {
   const pageTitle = crumbs[crumbs.length - 1]?.label ?? "Workspace";
 
   return (
-    <header className="sticky top-0 z-20 h-12 flex items-center gap-3 px-3 border-b border-white/[0.07] bg-[#0c1018]/92 backdrop-blur-xl shrink-0">
+    <header className="sticky top-0 z-20 h-12 flex items-center gap-3 px-3 border-b border-[#263140] bg-[#0C1018]/95 backdrop-blur-xl shrink-0">
       <Sheet>
-        <SheetTrigger render={<Button variant="ghost" size="icon" className="lg:hidden h-8 w-8 cursor-pointer" />}>
-          <Menu className="h-4 w-4" />
+        <SheetTrigger render={<Button variant="ghost" size="icon" className="lg:hidden h-8 w-8 cursor-pointer text-[#CBD5E1]" />}>
+          <Menu className="h-4 w-4 text-[#CBD5E1]" />
         </SheetTrigger>
-        <SheetContent side="left" className="p-0 w-72 bg-sidebar border-sidebar-border">
+        <SheetContent side="left" className="p-0 w-72 bg-[#080D16] border-[#263140]">
           <MobileNav />
         </SheetContent>
       </Sheet>
@@ -113,11 +113,11 @@ export function WorkspaceToolbar({ portal }: { portal: PortalRole }) {
         <Button
           variant="ghost"
           size="icon"
-          className="hidden lg:inline-flex h-8 w-8 cursor-pointer text-muted-foreground"
+          className="hidden lg:inline-flex h-8 w-8 cursor-pointer text-[#CBD5E1] hover:text-white hover:bg-[#18212D] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C5A059]"
           onClick={toggleSidebar}
           title="Expand sidebar (⌘B)"
         >
-          <PanelLeft className="h-4 w-4" />
+          <PanelLeft className="h-4 w-4 text-[#CBD5E1]" />
         </Button>
       )}
 
@@ -126,11 +126,11 @@ export function WorkspaceToolbar({ portal }: { portal: PortalRole }) {
           const isLast = i === crumbs.length - 1;
           return (
             <span key={c.href} className="flex items-center gap-1 min-w-0">
-              {i > 0 && <ChevronRight className="h-3 w-3 text-muted-foreground/40 shrink-0" />}
+              {i > 0 && <ChevronRight className="h-3 w-3 text-[#94A3B8] shrink-0" />}
               {isLast ? (
-                <span className="font-semibold tracking-tight truncate text-foreground">{c.label}</span>
+                <span className="font-semibold tracking-tight truncate text-[#F8FAFC]">{c.label}</span>
               ) : (
-                <Link href={c.href} className="text-muted-foreground hover:text-foreground transition-colors truncate">
+                <Link href={c.href} className="text-[#CBD5E1] hover:text-white transition-colors truncate">
                   {c.label}
                 </Link>
               )}
@@ -143,11 +143,11 @@ export function WorkspaceToolbar({ portal }: { portal: PortalRole }) {
       <div className="flex-1 flex justify-center px-2">
         <button
           onClick={toggle}
-          className="hidden sm:flex items-center gap-2 text-[12px] text-muted-foreground bg-white/[0.035] hover:bg-white/[0.06] border border-white/[0.08] rounded-lg px-3 h-8 w-full max-w-md transition-colors cursor-pointer"
+          className="hidden sm:flex items-center gap-2 text-[12px] text-[#94A3B8] bg-[#151C28] hover:bg-[#1C2535] border border-[#263140] rounded-lg px-3 h-8 w-full max-w-md transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C5A059]"
         >
-          <Search className="h-3.5 w-3.5 shrink-0 opacity-70" />
-          <span className="truncate flex-1 text-left">{t("search")}</span>
-          <kbd className="text-[10px] font-mono text-muted-foreground/80 bg-white/[0.06] border border-white/[0.08] px-1.5 py-0.5 rounded">
+          <Search className="h-3.5 w-3.5 shrink-0 text-[#94A3B8]" />
+          <span className="truncate flex-1 text-left text-[#CBD5E1]">{t("search")}</span>
+          <kbd className="text-[10px] font-mono text-[#CBD5E1] bg-white/10 border border-white/10 px-1.5 py-0.5 rounded">
             ⌘K
           </kbd>
         </button>
@@ -156,13 +156,13 @@ export function WorkspaceToolbar({ portal }: { portal: PortalRole }) {
       <div className="flex items-center gap-0.5 shrink-0">
         <QuickCreate portal={portal} />
 
-        <div className="mx-1.5 h-5 w-px bg-white/10 hidden md:block" />
+        <div className="mx-1.5 h-5 w-px bg-[#263140] hidden md:block" />
 
         <Button
           type="button"
           variant="ghost"
           size="icon"
-          className="h-8 w-8 cursor-pointer text-muted-foreground"
+          className="h-8 w-8 cursor-pointer text-[#CBD5E1] hover:text-white hover:bg-[#18212D]"
           onClick={toggleLang}
           title={lang === "en" ? "العربية" : "English"}
         >
@@ -175,7 +175,7 @@ export function WorkspaceToolbar({ portal }: { portal: PortalRole }) {
             size="icon"
             className={cn(
               "h-8 w-8 cursor-pointer",
-              aiDockOpen ? "text-primary bg-primary/15" : "text-muted-foreground"
+              aiDockOpen ? "text-[#C5A059] bg-[#C5A059]/15" : "text-[#CBD5E1] hover:text-white hover:bg-[#18212D]"
             )}
             onClick={toggleAiDock}
             title="AI Copilot (⌘J)"
@@ -187,7 +187,7 @@ export function WorkspaceToolbar({ portal }: { portal: PortalRole }) {
         <Button
           variant="ghost"
           size="icon"
-          className="h-8 w-8 cursor-pointer text-muted-foreground hidden sm:inline-flex"
+          className="h-8 w-8 cursor-pointer text-[#CBD5E1] hover:text-white hover:bg-[#18212D] hidden sm:inline-flex"
           onClick={() => setShortcutsOpen(true)}
           title="Keyboard shortcuts"
         >
@@ -197,34 +197,34 @@ export function WorkspaceToolbar({ portal }: { portal: PortalRole }) {
         <Popover>
           <PopoverTrigger
             render={
-              <Button variant="ghost" size="icon" className="relative h-8 w-8 cursor-pointer text-muted-foreground" />
+              <Button variant="ghost" size="icon" className="relative h-8 w-8 cursor-pointer text-[#CBD5E1] hover:text-white hover:bg-[#18212D]" />
             }
           >
-            <Bell className="h-4 w-4" />
+            <Bell className="h-4 w-4 text-[#CBD5E1]" />
             {unreadCount > 0 && (
               <span className="absolute top-1 right-1 min-w-[14px] h-3.5 px-0.5 rounded-full bg-rose-500 text-white text-[8px] font-semibold flex items-center justify-center">
                 {unreadCount > 9 ? "9+" : unreadCount}
               </span>
             )}
           </PopoverTrigger>
-          <PopoverContent align="end" className="w-80 p-0 border-white/10 bg-[#12161f]">
-            <div className="px-3 py-2.5 border-b border-white/10 flex items-center justify-between">
-              <p className="text-xs font-semibold">{t("notifications")}</p>
-              <Badge variant="secondary" className="text-[9px]">
+          <PopoverContent align="end" className="w-80 p-0 border-[#263140] bg-[#111823] text-[#F8FAFC]">
+            <div className="px-3 py-2.5 border-b border-[#263140] flex items-center justify-between">
+              <p className="text-xs font-semibold text-[#F8FAFC]">{t("notifications")}</p>
+              <Badge variant="secondary" className="text-[9px] bg-[#18212D] text-[#C5A059]">
                 {unreadCount} new
               </Badge>
             </div>
             <div className="max-h-72 overflow-y-auto scrollbar-thin">
               {notifications.length === 0 && (
-                <div className="px-3 py-8 text-center text-[11px] text-muted-foreground">{t("noNotifications")}</div>
+                <div className="px-3 py-8 text-center text-[11px] text-[#94A3B8]">{t("noNotifications")}</div>
               )}
               {notifications.slice(0, 20).map((n) => (
                 <button
                   key={n.id}
                   onClick={() => !n.is_read && markRead.mutate(n.id)}
                   className={cn(
-                    "w-full text-left px-3 py-2.5 border-b border-white/5 last:border-0 hover:bg-white/[0.04] cursor-pointer",
-                    !n.is_read && "bg-primary/[0.04]"
+                    "w-full text-left px-3 py-2.5 border-b border-[#263140]/50 last:border-0 hover:bg-[#18212D] cursor-pointer",
+                    !n.is_read && "bg-[#18212D]/60"
                   )}
                 >
                   <div className="flex gap-2.5">
@@ -234,9 +234,9 @@ export function WorkspaceToolbar({ portal }: { portal: PortalRole }) {
                       </AvatarFallback>
                     </Avatar>
                     <div className="min-w-0">
-                      <p className="text-[11px] font-medium truncate">{n.title}</p>
-                      {n.body && <p className="text-[10px] text-muted-foreground line-clamp-2">{n.body}</p>}
-                      <p className="text-[9px] text-muted-foreground/70 mt-0.5">{formatRelativeTime(n.created_at)}</p>
+                      <p className="text-[11px] font-medium truncate text-[#F8FAFC]">{n.title}</p>
+                      {n.body && <p className="text-[10px] text-[#CBD5E1] line-clamp-2">{n.body}</p>}
+                      <p className="text-[9px] text-[#94A3B8] mt-0.5">{formatRelativeTime(n.created_at)}</p>
                     </div>
                   </div>
                 </button>
@@ -246,7 +246,7 @@ export function WorkspaceToolbar({ portal }: { portal: PortalRole }) {
         </Popover>
 
         <DropdownMenu>
-          <DropdownMenuTrigger className="ml-1 flex items-center cursor-pointer rounded-full ring-1 ring-white/10 hover:ring-primary/40 transition-all">
+          <DropdownMenuTrigger className="ml-1 flex items-center cursor-pointer rounded-full ring-1 ring-[#263140] hover:ring-[#C5A059] transition-all">
             <Avatar className="h-8 w-8" size="sm">
               <AvatarImage src={profileAvatar} alt="" />
               <AvatarFallback className="gradient-brand text-white text-[10px] font-semibold">{initials}</AvatarFallback>

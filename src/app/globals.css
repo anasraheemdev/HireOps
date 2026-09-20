@@ -17,7 +17,14 @@
   --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
   --color-sidebar-primary: var(--sidebar-primary);
   --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-secondary: var(--sidebar-secondary);
+  --color-sidebar-muted: var(--sidebar-muted);
   --color-sidebar: var(--sidebar);
+  --color-header: var(--header);
+  --color-header-foreground: var(--header-foreground);
+  --color-header-secondary: var(--header-secondary);
+  --color-header-muted: var(--header-muted);
+  --color-header-border: var(--header-border);
   --color-chart-5: var(--chart-5);
   --color-chart-4: var(--chart-4);
   --color-chart-3: var(--chart-3);
@@ -88,14 +95,26 @@
   --ws-panel-border: #E7E5E4;
   --ws-row-hover: #F8F6F0;
   --ws-row-selected: #F6F0E2;
-  --sidebar: #0F172A; /* Executive Dark Navy Sidebar */
+  --sidebar: #080D16; /* Dark Executive Navigation Surface */
+  --sidebar-surface: #111823;
+  --sidebar-surface-hover: #18212D;
   --sidebar-foreground: #F8FAFC;
-  --sidebar-primary: #C5A059;
+  --sidebar-secondary: #CBD5E1;
+  --sidebar-muted: #94A3B8;
+  --sidebar-primary: #C5A059; /* OIA Gold */
   --sidebar-primary-foreground: #FFFFFF;
-  --sidebar-accent: #1E293B;
+  --sidebar-accent: #202733;
   --sidebar-accent-foreground: #FFFFFF;
-  --sidebar-border: #334155;
+  --sidebar-border: #263140;
   --sidebar-ring: rgba(197, 160, 89, 0.5);
+
+  --header: #0C1018;
+  --header-foreground: #F8FAFC;
+  --header-secondary: #CBD5E1;
+  --header-muted: #94A3B8;
+  --header-border: #263140;
+  --header-search-bg: #151C28;
+  --header-search-border: #2D3A4E;
 }
 
 .dark {
@@ -125,14 +144,26 @@
   --chart-3: #047857;
   --chart-4: #D97706;
   --chart-5: #78561A;
-  --sidebar: #0F172A;
+  --sidebar: #080D16;
+  --sidebar-surface: #111823;
+  --sidebar-surface-hover: #18212D;
   --sidebar-foreground: #F8FAFC;
+  --sidebar-secondary: #CBD5E1;
+  --sidebar-muted: #94A3B8;
   --sidebar-primary: #C5A059;
   --sidebar-primary-foreground: #FFFFFF;
-  --sidebar-accent: #1E293B;
+  --sidebar-accent: #202733;
   --sidebar-accent-foreground: #FFFFFF;
-  --sidebar-border: #334155;
+  --sidebar-border: #263140;
   --sidebar-ring: rgba(197, 160, 89, 0.5);
+
+  --header: #0C1018;
+  --header-foreground: #F8FAFC;
+  --header-secondary: #CBD5E1;
+  --header-muted: #94A3B8;
+  --header-border: #263140;
+  --header-search-bg: #151C28;
+  --header-search-border: #2D3A4E;
 }
 
 @layer base {

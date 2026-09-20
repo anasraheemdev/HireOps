@@ -85,16 +85,16 @@ export function Sidebar() {
     <motion.aside
       animate={{ width: collapsed ? 76 : 264 }}
       transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
-      className="hidden lg:flex h-screen sticky top-0 flex-col border-r border-sidebar-border bg-sidebar/95 backdrop-blur-xl z-30"
+      className="hidden lg:flex h-screen sticky top-0 flex-col border-r border-[#263140] bg-[#080D16] backdrop-blur-xl z-30"
     >
-      <div className="flex items-center gap-3 h-16 px-4 border-b border-sidebar-border shrink-0">
+      <div className="flex items-center gap-3 h-16 px-4 border-b border-[#263140] shrink-0">
         <div className="flex h-9 w-9 items-center justify-center rounded-xl overflow-hidden ring-1 ring-white/10 shrink-0">
           <HireOpsLogo size={36} variant="full" className="h-9 w-9" />
         </div>
         {!collapsed && (
           <div className="min-w-0 overflow-hidden">
-            <p className="text-sm font-semibold leading-tight truncate">{BRAND.name}</p>
-            <p className="text-[11px] text-muted-foreground truncate">{BRAND.tagline}</p>
+            <p className="text-[15px] font-semibold leading-tight truncate text-[#F8FAFC]">{BRAND.name}</p>
+            <p className="text-[11px] text-[#94A3B8] font-medium truncate" title={BRAND.tagline}>{BRAND.tagline}</p>
           </div>
         )}
       </div>
@@ -103,7 +103,7 @@ export function Sidebar() {
         {navGroups.map((group) => (
           <div key={group.title}>
             {!collapsed && (
-              <p className="px-2.5 mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70">
+              <p className="px-2.5 mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-[#94A3B8]">
                 {group.title}
               </p>
             )}
@@ -114,25 +114,18 @@ export function Sidebar() {
                   <Link
                     href={item.href}
                     className={cn(
-                      "group relative flex items-center gap-3 rounded-xl px-2.5 py-2 text-sm font-medium transition-colors",
+                      "group relative flex items-center gap-3 rounded-xl px-2.5 py-2 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C5A059]",
                       active
-                        ? "text-foreground"
-                        : "text-sidebar-foreground/70 hover:text-foreground hover:bg-sidebar-accent"
+                        ? "text-white bg-[#202733] border-l-2 border-[#C5A059]"
+                        : "text-[#CBD5E1] hover:text-white hover:bg-[#18212D]"
                     )}
                   >
-                    {active && (
-                      <motion.div
-                        layoutId="sidebar-active"
-                        className="absolute inset-0 rounded-xl gradient-brand opacity-90"
-                        transition={{ type: "spring", stiffness: 400, damping: 32 }}
-                      />
-                    )}
-                    <item.icon className={cn("h-4.5 w-4.5 shrink-0 relative z-10", active && "text-white")} strokeWidth={2} />
+                    <item.icon className={cn("h-4.5 w-4.5 shrink-0 relative z-10", active ? "text-[#C5A059]" : "text-[#CBD5E1] group-hover:text-white")} strokeWidth={2} />
                     {!collapsed && (
-                      <span className={cn("relative z-10 truncate", active && "text-white")}>{item.label}</span>
+                      <span className={cn("relative z-10 truncate", active ? "text-white font-semibold" : "text-[#CBD5E1] group-hover:text-white")}>{item.label}</span>
                     )}
                     {!collapsed && item.badge && (
-                      <span className="relative z-10 ml-auto text-[10px] font-semibold bg-blue-500/20 text-blue-300 px-1.5 py-0.5 rounded-full">
+                      <span className="relative z-10 ml-auto text-[10px] font-semibold bg-[#C5A059]/20 text-[#D7B45F] px-1.5 py-0.5 rounded-full">
                         {item.badge}
                       </span>
                     )}
@@ -151,12 +144,12 @@ export function Sidebar() {
         ))}
       </nav>
 
-      <div className="p-2.5 border-t border-sidebar-border">
+      <div className="p-2.5 border-t border-[#263140]">
         <button
           onClick={() => setCollapsed((c) => !c)}
-          className="flex w-full items-center gap-3 rounded-xl px-2.5 py-2 text-sm text-sidebar-foreground/70 hover:text-foreground hover:bg-sidebar-accent transition-colors"
+          className="flex w-full items-center gap-3 rounded-xl px-2.5 py-2 text-sm text-[#CBD5E1] hover:text-white hover:bg-[#18212D] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C5A059]"
         >
-          {collapsed ? <ChevronsRight className="h-4.5 w-4.5" /> : <ChevronsLeft className="h-4.5 w-4.5" />}
+          {collapsed ? <ChevronsRight className="h-4.5 w-4.5 text-[#CBD5E1]" /> : <ChevronsLeft className="h-4.5 w-4.5 text-[#CBD5E1]" />}
           {!collapsed && <span>Collapse</span>}
         </button>
       </div>

@@ -2,7 +2,7 @@ import sharp from "sharp";
 import fs from "fs";
 import path from "path";
 
-const src = path.join("public", "HireOps.png");
+const src = path.join("public", "oia-logo.png");
 const out = "public";
 const meta = path.join("src", "app");
 

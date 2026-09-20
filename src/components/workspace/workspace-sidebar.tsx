@@ -62,19 +62,19 @@ export function WorkspaceSidebar({ portal }: { portal: PortalRole }) {
   return (
     <aside
       className={cn(
-        "hidden lg:flex shrink-0 flex-col border-r border-white/[0.07] bg-[#0a0e16] transition-[width] duration-200",
+        "hidden lg:flex shrink-0 flex-col border-r border-[#263140] bg-[#080D16] transition-[width] duration-200",
         sidebarCollapsed ? "w-14" : "w-56"
       )}
     >
-      <div className="flex items-center gap-2 border-b border-white/[0.07] px-2.5 h-12">
+      <div className="flex items-center gap-2 border-b border-[#263140] px-2.5 h-12">
         <Link href={portalHome[portal]} className="flex items-center gap-2.5 min-w-0 flex-1 overflow-hidden">
-          <div className="h-8 w-8 rounded-lg overflow-hidden shrink-0 bg-[#0a0e16] ring-1 ring-white/10">
+          <div className="h-8 w-8 rounded-lg overflow-hidden shrink-0 bg-[#080D16] ring-1 ring-white/10">
             <HireOpsLogo size={32} variant="full" className="h-8 w-8" />
           </div>
           {!sidebarCollapsed && (
             <div className="min-w-0">
-              <p className="text-[13px] font-semibold tracking-tight truncate leading-tight">{BRAND.name}</p>
-              <p className="text-[10px] text-muted-foreground truncate leading-tight mt-0.5">
+              <p className="text-[14px] font-semibold tracking-tight truncate leading-tight text-[#F8FAFC]">{BRAND.name}</p>
+              <p className="text-[11px] text-[#94A3B8] font-medium truncate leading-tight mt-0.5" title={BRAND.tagline}>
                 {BRAND.tagline}
               </p>
             </div>
@@ -83,7 +83,7 @@ export function WorkspaceSidebar({ portal }: { portal: PortalRole }) {
         <Button
           variant="ghost"
           size="icon"
-          className="h-7 w-7 shrink-0 cursor-pointer text-muted-foreground hover:text-foreground"
+          className="h-7 w-7 shrink-0 cursor-pointer text-[#CBD5E1] hover:text-white hover:bg-[#18212D] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C5A059]"
           onClick={toggleSidebar}
           title={sidebarCollapsed ? "Expand" : "Collapse"}
         >
@@ -92,31 +92,31 @@ export function WorkspaceSidebar({ portal }: { portal: PortalRole }) {
       </div>
 
       {!sidebarCollapsed && (
-        <div className="px-2 py-2 border-b border-white/[0.06]">
+        <div className="px-2 py-2 border-b border-[#263140]">
           <DropdownMenu>
             <DropdownMenuTrigger
               render={
                 <Button
                   variant="ghost"
-                  className="w-full justify-start gap-2 h-9 px-2 text-[12px] cursor-pointer bg-white/[0.03] hover:bg-white/[0.06] border border-white/[0.06]"
+                  className="w-full justify-start gap-2 h-9 px-2 text-[12px] cursor-pointer bg-[#111823] hover:bg-[#18212D] border border-[#263140] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C5A059]"
                 />
               }
             >
-              <Building2 className="h-3.5 w-3.5 text-primary shrink-0" />
-              <span className="truncate flex-1 text-left font-medium">
+              <Building2 className="h-3.5 w-3.5 text-[#C5A059] shrink-0" />
+              <span className="truncate flex-1 text-left font-medium text-[#F8FAFC]" title={profile?.organizationName ?? "Your organization"}>
                 {profile?.organizationName ?? "Your organization"}
               </span>
-              <ChevronsUpDown className="h-3 w-3 text-muted-foreground shrink-0" />
+              <ChevronsUpDown className="h-3 w-3 text-[#94A3B8] shrink-0" />
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="start" className="w-56">
+            <DropdownMenuContent align="start" className="w-56 bg-[#111823] border-[#263140] text-[#F8FAFC]">
               {workspaces.map((w) => (
                 <DropdownMenuItem
                   key={w.role}
-                  className="cursor-pointer text-xs"
+                  className="cursor-pointer text-xs text-[#CBD5E1] hover:text-white focus:bg-[#18212D] focus:text-white"
                   onClick={() => router.push(w.href)}
                 >
                   {w.label}
-                  {w.role === portal && <span className="ml-auto text-primary text-[10px]">Current</span>}
+                  {w.role === portal && <span className="ml-auto text-[#C5A059] font-semibold text-[10px]">Current</span>}
                 </DropdownMenuItem>
               ))}
             </DropdownMenuContent>
@@ -127,15 +127,15 @@ export function WorkspaceSidebar({ portal }: { portal: PortalRole }) {
       <ScrollArea className="flex-1 px-2 py-3">
         {!sidebarCollapsed && favorites.length > 0 && (
           <div className="mb-4">
-            <p className="px-2 mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60 flex items-center gap-1.5">
-              <Star className="h-2.5 w-2.5" /> Favorites
+            <p className="px-2 mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-[#94A3B8] flex items-center gap-1.5">
+              <Star className="h-2.5 w-2.5 text-[#C5A059]" /> Favorites
             </p>
             <ul className="space-y-0.5">
               {favorites.slice(0, 5).map((f) => (
                 <li key={`${f.type}-${f.id}`}>
                   <Link
                     href={f.href}
-                    className="flex items-center gap-2 rounded-md px-2 py-1.5 text-[12px] text-muted-foreground hover:text-foreground hover:bg-white/[0.05] truncate"
+                    className="flex items-center gap-2 rounded-md px-2 py-1.5 text-[12px] text-[#CBD5E1] hover:text-white hover:bg-[#18212D] truncate"
                   >
                     {f.label}
                   </Link>
@@ -147,15 +147,15 @@ export function WorkspaceSidebar({ portal }: { portal: PortalRole }) {
 
         {!sidebarCollapsed && recent.length > 0 && (
           <div className="mb-4">
-            <p className="px-2 mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60 flex items-center gap-1.5">
-              <Clock className="h-2.5 w-2.5" /> Recent
+            <p className="px-2 mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-[#94A3B8] flex items-center gap-1.5">
+              <Clock className="h-2.5 w-2.5 text-[#94A3B8]" /> Recent
             </p>
             <ul className="space-y-0.5">
               {recent.slice(0, 4).map((r) => (
                 <li key={`${r.type}-${r.id}`}>
                   <Link
                     href={r.href}
-                    className="flex items-center gap-2 rounded-md px-2 py-1.5 text-[12px] text-muted-foreground hover:text-foreground hover:bg-white/[0.05] truncate"
+                    className="flex items-center gap-2 rounded-md px-2 py-1.5 text-[12px] text-[#CBD5E1] hover:text-white hover:bg-[#18212D] truncate"
                   >
                     {r.label}
                   </Link>
@@ -169,7 +169,7 @@ export function WorkspaceSidebar({ portal }: { portal: PortalRole }) {
           {groups.map((group) => (
             <div key={group.title}>
               {!sidebarCollapsed && (
-                <p className="px-2 mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60">
+                <p className="px-2 mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-[#94A3B8]">
                   {groupTitle(group.title)}
                 </p>
               )}
@@ -184,16 +184,16 @@ export function WorkspaceSidebar({ portal }: { portal: PortalRole }) {
                         href={item.href}
                         title={item.label}
                         className={cn(
-                          "relative flex items-center gap-2.5 rounded-md px-2 py-2 text-[12.5px] transition-colors cursor-pointer",
+                          "relative flex items-center gap-2.5 rounded-md px-2 py-2 text-[12.5px] font-medium transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C5A059]",
                           sidebarCollapsed && "justify-center px-0",
                           active
-                            ? "text-foreground bg-white/[0.08] shadow-[inset_2px_0_0_0] shadow-primary"
-                            : "text-muted-foreground hover:text-foreground hover:bg-white/[0.04]"
+                            ? "text-white bg-[#202733] shadow-[inset_3px_0_0_0] shadow-[#C5A059]"
+                            : "text-[#CBD5E1] hover:text-white hover:bg-[#18212D]"
                         )}
                       >
-                        <Icon className={cn("h-4 w-4 shrink-0", active && "text-primary")} />
+                        <Icon className={cn("h-4 w-4 shrink-0", active ? "text-[#C5A059]" : "text-[#CBD5E1]")} />
                         {!sidebarCollapsed && (
-                          <span className="flex-1 truncate font-medium">{navLabel(item.href, item.label)}</span>
+                          <span className={cn("flex-1 truncate", active ? "font-semibold text-white" : "text-[#CBD5E1]")}>{navLabel(item.href, item.label)}</span>
                         )}
                       </Link>
                     </li>

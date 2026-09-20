@@ -29,7 +29,15 @@ export async function GET(
       .eq("id", assignmentId)
       .single();
 
-    if (error || !assignment) {
+    if (error) {
+      if (error.code === "PGRST116") {
+        throw new ApiError(404, "Assessment assignment not found");
+      }
+      console.error("[GET Assessment] Database query error:", error.message);
+      throw new ApiError(500, "Database query failed while fetching assessment assignment");
+    }
+
+    if (!assignment) {
       throw new ApiError(404, "Assessment assignment not found");
     }
 
@@ -120,24 +128,44 @@ export async function POST(
     const { data: assignment, error } = await admin
       .from("assessment_assignments")
       .select(`
-        id, status, assessment_id, started_at, score, answers,
+        id, status, assessment_id, started_at, score, answers, grading_details,
         assessments ( id, duration_minutes ),
-        applications ( id, candidate_id, job_id, organization_id )
+        applications ( id, candidate_id, job_id )
       `)
       .eq("id", assignmentId)
       .single();
 
-    if (error || !assignment) throw new ApiError(404, "Assignment not found");
+    if (error) {
+      if (error.code === "PGRST116") {
+        throw new ApiError(404, "Assignment not found");
+      }
+      console.error("[POST Assessment] Database query error:", error.message);
+      throw new ApiError(500, "Database query failed while fetching assessment assignment");
+    }
+
+    if (!assignment) throw new ApiError(404, "Assignment not found");
 
     const app = Array.isArray(assignment.applications) ? assignment.applications[0] : assignment.applications;
     if (profile.portalRole === "candidate" && app?.candidate_id !== profile.candidateId) {
       throw new ApiError(403, "Access denied to this assessment");
     }
 
+    // Resolve organization ID for interview session
+    let organizationId = profile.organizationId || null;
+    if (!organizationId && app?.job_id) {
+      const { data: applicationJob } = await admin
+        .from("jobs")
+        .select("organization_id")
+        .eq("id", app.job_id)
+        .maybeSingle();
+
+      organizationId = applicationJob?.organization_id || null;
+    }
+
     if (body.action === "start") {
       const startedAt = assignment.started_at || new Date().toISOString();
       if (!assignment.started_at) {
-        await createAdminSupabaseClient()
+        await admin
           .from("assessment_assignments")
           .update({ started_at: startedAt, status: "in_progress" })
           .eq("id", assignmentId);
@@ -151,13 +179,47 @@ export async function POST(
       });
     }
 
+    // Prevent duplicate resubmission or rescoring
     if (assignment.status === "completed" || assignment.status === "grading_pending") {
+      let interviewSessionId: string | null = null;
+      if (app?.id) {
+        const { data: existingSession } = await admin
+          .from("interview_sessions")
+          .select("id")
+          .eq("application_id", app.id)
+          .maybeSingle();
+
+        if (existingSession) {
+          interviewSessionId = existingSession.id;
+        } else if (organizationId && app.candidate_id && app.job_id) {
+          const { data: newSession } = await admin
+            .from("interview_sessions")
+            .insert({
+              organization_id: organizationId,
+              application_id: app.id,
+              candidate_id: app.candidate_id,
+              job_id: app.job_id,
+              status: "scheduled",
+              mode: "behavioral",
+            })
+            .select("id")
+            .single();
+          if (newSession) interviewSessionId = newSession.id;
+        }
+      }
+
+      const nextUrl = interviewSessionId
+        ? `/candidate/interviews/${interviewSessionId}`
+        : "/candidate/applications";
+
       return NextResponse.json({
         data: {
-          assignmentId: assignment.id,
+          id: assignment.id,
           status: assignment.status,
           score: assignment.score ?? 0,
-          completedAt: new Date().toISOString(),
+          gradingDetails: assignment.grading_details || {},
+          interviewSessionId,
+          nextUrl,
         },
       });
     }
@@ -248,7 +310,6 @@ Return JSON: { scorePercent: number (0-100), feedback: string }.`,
         }
       } catch (aiErr) {
         console.warn("[POST Assessment] AI grading failed, setting grading_pending:", aiErr);
-        // CRITICAL RULE 14: On AI grading failure, mark grading_pending with 0 fallback points!
         hasPendingWrittenGrading = true;
         for (const item of writtenItems) {
           if (!gradingDetails[item.id]) {
@@ -282,7 +343,7 @@ Return JSON: { scorePercent: number (0-100), feedback: string }.`,
 
     if (updateErr) throw updateErr;
 
-    // Requirement 16: Return application's linked interview session ID and next URL
+    // Find or create exactly one interview session for the application
     let interviewSessionId: string | null = null;
     if (app?.id && app.candidate_id) {
       const { data: existingSession } = await admin
@@ -293,11 +354,11 @@ Return JSON: { scorePercent: number (0-100), feedback: string }.`,
 
       if (existingSession) {
         interviewSessionId = existingSession.id;
-      } else {
-        const { data: newSession } = await admin
+      } else if (organizationId) {
+        const { data: newSession, error: createErr } = await admin
           .from("interview_sessions")
           .insert({
-            organization_id: app.organization_id,
+            organization_id: organizationId,
             application_id: app.id,
             candidate_id: app.candidate_id,
             job_id: app.job_id,
@@ -306,7 +367,12 @@ Return JSON: { scorePercent: number (0-100), feedback: string }.`,
           })
           .select("id")
           .single();
-        if (newSession) interviewSessionId = newSession.id;
+
+        if (createErr) {
+          console.error("[POST Assessment] Failed to create interview session:", createErr.message);
+        } else if (newSession) {
+          interviewSessionId = newSession.id;
+        }
       }
     }
 

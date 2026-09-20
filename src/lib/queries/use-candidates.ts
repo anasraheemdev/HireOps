@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiFetch } from "@/lib/api/fetcher";
 import type { Candidate } from "@/lib/types";
 import type { UpdateCandidateInput } from "@/lib/services/candidates.service";
+import type { HrCandidateReviewData } from "@/lib/services/hr-candidate-review.service";
 
 export function useCandidatesQuery(options?: { enabled?: boolean }) {
   return useQuery({
@@ -65,6 +66,94 @@ export function useApplicationDecisionMutation() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["candidates"] });
       queryClient.invalidateQueries({ queryKey: ["job-matches"] });
+    },
+  });
+}
+
+export function useHrCandidateReviewQuery(candidateId: string, applicationId?: string | null) {
+  return useQuery({
+    queryKey: ["hr-candidate-review", candidateId, applicationId || "latest"],
+    queryFn: () => {
+      const url = applicationId
+        ? `/api/hr/candidates/${candidateId}?applicationId=${encodeURIComponent(applicationId)}`
+        : `/api/hr/candidates/${candidateId}`;
+      return apiFetch<HrCandidateReviewData>(url);
+    },
+    enabled: !!candidateId,
+  });
+}
+
+export function useSubmitHiringDecisionMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      applicationId,
+      decision,
+      candidateMessage,
+      internalNotes,
+      rejectionReason,
+    }: {
+      applicationId: string;
+      decision: "select" | "reject";
+      candidateMessage?: string;
+      internalNotes?: string;
+      rejectionReason?: string;
+    }) =>
+      apiFetch(`/api/hr/applications/${applicationId}/decision`, {
+        method: "POST",
+        body: JSON.stringify({ decision, candidateMessage, internalNotes, rejectionReason }),
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["candidates"] });
+      queryClient.invalidateQueries({ queryKey: ["hr-candidate-review"] });
+      queryClient.invalidateQueries({ queryKey: ["job-matches"] });
+    },
+  });
+}
+
+export function useScheduleHumanInterviewMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      applicationId,
+      scheduledAt,
+      timezone,
+      interviewType,
+      interviewerName,
+      interviewerEmail,
+      meetingLink,
+      location,
+      candidateInstructions,
+      internalNotes,
+    }: {
+      applicationId: string;
+      scheduledAt: string;
+      timezone?: string;
+      interviewType: "in_person" | "video" | "phone";
+      interviewerName: string;
+      interviewerEmail?: string;
+      meetingLink?: string;
+      location?: string;
+      candidateInstructions?: string;
+      internalNotes?: string;
+    }) =>
+      apiFetch(`/api/hr/applications/${applicationId}/human-interview`, {
+        method: "POST",
+        body: JSON.stringify({
+          scheduledAt,
+          timezone,
+          interviewType,
+          interviewerName,
+          interviewerEmail,
+          meetingLink,
+          location,
+          candidateInstructions,
+          internalNotes,
+        }),
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["candidates"] });
+      queryClient.invalidateQueries({ queryKey: ["hr-candidate-review"] });
     },
   });
 }

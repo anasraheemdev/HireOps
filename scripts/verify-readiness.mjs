@@ -4,7 +4,7 @@ import { createClient } from '@supabase/supabase-js';
 import { jsPDF } from 'jspdf';
 import assert from 'node:assert/strict';
 dotenv.config({path:'.env.local',quiet:true});
-const base=process.argv[2]||'http://localhost:3001';
+const base=process.argv[2]||'http://localhost:3000';
 const url=process.env.NEXT_PUBLIC_SUPABASE_URL, anon=process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 const admin=createClient(url,process.env.SUPABASE_SERVICE_ROLE_KEY,{auth:{persistSession:false}});
 const stamp=Date.now(); const created={users:[],candidates:[],jobs:[],assessments:[],resumePaths:[]};
@@ -12,7 +12,8 @@ let assertions=0;
 function check(condition,label){assert.ok(condition,label);assertions++;console.log('PASS '+label);}
 async function checkServer() {
   try {
-    await fetch(base, { method: "HEAD", signal: AbortSignal.timeout(3000) });
+    const res = await fetch(base + '/login', { method: "GET", redirect: 'follow', signal: AbortSignal.timeout(5000) });
+    if (!res.ok && res.status !== 307 && res.status !== 308) throw new Error(`HTTP ${res.status}`);
   } catch (_err) {
     console.error(`\n[Verification Warning] Target server at ${base} is not running or not responding.`);
     console.error(`Please launch the dev server first ('npm run dev') or pass target URL: node scripts/verify-readiness.mjs <url>\n`);

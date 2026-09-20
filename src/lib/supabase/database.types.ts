@@ -449,6 +449,46 @@ export interface Database {
         Update: Partial<Database["public"]["Tables"]["app_secrets"]["Row"]>;
         Relationships: [];
       };
+      human_interviews: {
+        Row: {
+          id: string;
+          organization_id: string;
+          application_id: string;
+          scheduled_by: string | null;
+          interviewer_name: string;
+          interviewer_email: string | null;
+          interview_type: string;
+          scheduled_at: string;
+          timezone: string;
+          meeting_link: string | null;
+          location: string | null;
+          candidate_instructions: string | null;
+          internal_notes: string | null;
+          status: string;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: Partial<Database["public"]["Tables"]["human_interviews"]["Row"]> & { organization_id: string; application_id: string; interviewer_name: string; scheduled_at: string };
+        Update: Partial<Database["public"]["Tables"]["human_interviews"]["Row"]>;
+        Relationships: [];
+      };
+      hiring_decisions: {
+        Row: {
+          id: string;
+          organization_id: string;
+          application_id: string;
+          decision: string;
+          decided_by: string | null;
+          candidate_message: string | null;
+          internal_notes: string | null;
+          decided_at: string;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: Partial<Database["public"]["Tables"]["hiring_decisions"]["Row"]> & { organization_id: string; application_id: string; decision: string };
+        Update: Partial<Database["public"]["Tables"]["hiring_decisions"]["Row"]>;
+        Relationships: [];
+      };
       saved_jobs: {
         Row: { id: string; candidate_id: string; job_id: string; created_at: string };
         Insert: Partial<Database["public"]["Tables"]["saved_jobs"]["Row"]> & { candidate_id: string; job_id: string };
