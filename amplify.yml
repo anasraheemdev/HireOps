@@ -11,9 +11,9 @@ frontend:
         - npm ci
     build:
       commands:
-        # Expose Amplify Console env vars to Next.js (build + SSR runtime)
-        # See: https://docs.aws.amazon.com/amplify/latest/userguide/ssr-environment-variables.html
-        - env | grep -E '^(NEXT_PUBLIC_|SUPABASE_|DATABASE_URL|DIRECT_URL|OPENROUTER_|AI_)' >> .env.production || true
+        - rm -f .env.production
+        - env | grep -E '^(AI_PROVIDER|AI_CHAT_MODEL|AI_EMBEDDING_MODEL|OPENROUTER_API_KEY|APP_ENCRYPTION_KEY|NEXT_PUBLIC_SUPABASE_URL|NEXT_PUBLIC_SUPABASE_ANON_KEY|SUPABASE_SERVICE_ROLE_KEY|NEXT_PUBLIC_APP_URL)$' >> .env.production || true
+        - node scripts/verify-production-env.mjs || true
         - npm run build
   artifacts:
     baseDirectory: .next

@@ -32,16 +32,41 @@ export interface AIProvider {
 
 export type AICategoryError =
   | "missing_provider_key"
-  | "unsupported_provider"
+  | "invalid_provider_configuration"
+  | "app_secret_decryption_failed"
   | "provider_authentication_failed"
+  | "provider_payment_required"
+  | "provider_forbidden"
+  | "provider_model_not_found"
   | "provider_rate_limited"
   | "provider_timeout"
   | "provider_network_error"
-  | "provider_invalid_model"
+  | "provider_upstream_error"
+  | "provider_empty_response"
   | "provider_invalid_json"
   | "resume_schema_validation_failed"
   | "pdf_parser_import_failed"
-  | "pdf_text_extraction_failed";
+  | "pdf_text_extraction_failed"
+  | "storage_upload_failed"
+  | "unknown_ai_error";
+
+export type ResumeParseDiagnostics = {
+  requestId: string;
+  extraction: {
+    succeeded: boolean;
+    method: string;
+    characterCount: number;
+  };
+  aiParsing: {
+    succeeded: boolean;
+    provider: string | null;
+    model: string | null;
+    fallbackUsed: boolean;
+    errorCode: AICategoryError | string | null;
+  };
+  configurationSource?: "organization" | "environment";
+  totalDurationMs?: number;
+};
 
 export class AIProviderError extends Error {
   provider: string;
@@ -52,4 +77,5 @@ export class AIProviderError extends Error {
     this.category = category;
   }
 }
+
 

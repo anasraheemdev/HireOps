@@ -99,6 +99,9 @@ export default function CvParsingPage() {
   const [education, setEducation] = useState<EduItem[]>([]);
   const [experienceYears, setExperienceYears] = useState(0);
 
+  const [fallbackUsed, setFallbackUsed] = useState(false);
+  const [currentFile, setCurrentFile] = useState<File | null>(null);
+
   const reset = () => {
     setStep("upload");
     setFileName("");
@@ -108,6 +111,8 @@ export default function CvParsingPage() {
     setWarnings([]);
     setResumeText(null);
     setResumeFilePath(null);
+    setFallbackUsed(false);
+    setCurrentFile(null);
     setName("");
     setTitle("");
     setEmail("");
@@ -124,6 +129,7 @@ export default function CvParsingPage() {
 
   const runParse = useCallback(
     async (file: File) => {
+      setCurrentFile(file);
       setFileName(file.name);
       setStep("uploading");
       setProgress(15);
@@ -175,6 +181,7 @@ export default function CvParsingPage() {
         setWarnings(result.warnings ?? []);
         setResumeText(result.resumeText);
         setResumeFilePath(result.resumeFilePath);
+        setFallbackUsed(Boolean((result as { fallbackUsed?: boolean }).fallbackUsed));
         setStep("review");
       } catch (err) {
         clearInterval(progressTimer);
@@ -378,6 +385,15 @@ export default function CvParsingPage() {
                   ))}
                 </ul>
               </div>
+            )}
+
+            {fallbackUsed && currentFile && (
+              <Button
+                className="w-full gradient-brand text-white gap-2 text-xs cursor-pointer mb-2"
+                onClick={() => void runParse(currentFile)}
+              >
+                <RotateCcw className="h-4 w-4" /> Retry AI Parsing
+              </Button>
             )}
 
             <Button variant="outline" onClick={reset} className="w-full bg-white/5 border-white/10 gap-2">

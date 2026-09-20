@@ -48,11 +48,12 @@ export async function POST(request: Request) {
       });
       if (!uploadError) {
         finalStoragePath = storagePath;
+        console.log(`[CV-Parse Diagnostics][${correlationId}][storage_upload_completed] Succeeded: path="${storagePath}"`);
       } else {
-        console.warn("[parse-resume] Storage upload warning (non-fatal):", uploadError.message);
+        console.warn(`[CV-Parse Diagnostics][${correlationId}][storage_upload_completed] Storage upload warning (non-fatal):`, uploadError.message);
       }
     } catch (storageErr) {
-      console.warn("[parse-resume] Storage upload exception (non-fatal):", storageErr);
+      console.warn(`[CV-Parse Diagnostics][${correlationId}][storage_upload_completed] Storage upload exception (non-fatal):`, storageErr);
     }
 
     return NextResponse.json({
@@ -63,6 +64,10 @@ export async function POST(request: Request) {
         resumeText: result.resumeText,
         resumeFilePath: finalStoragePath,
         fileName,
+        correlationId: result.correlationId,
+        aiParsingSucceeded: result.aiParsingSucceeded,
+        fallbackUsed: result.fallbackUsed,
+        diagnostics: result.diagnostics,
       },
     });
   } catch (err) {

@@ -44,6 +44,8 @@ export default function CandidateResumePage() {
   const [resumeText, setResumeText] = useState<string | null>(null);
   const [resumeFilePath, setResumeFilePath] = useState<string | null>(null);
   const [confirming, setConfirming] = useState(false);
+  const [fallbackUsed, setFallbackUsed] = useState(false);
+  const [currentFile, setCurrentFile] = useState<File | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -61,6 +63,7 @@ export default function CandidateResumePage() {
   const [education, setEducation] = useState<{ degree: string; institution: string; period?: string | null }[]>([]);
 
   const handleUploadAndParse = async (file: File) => {
+    setCurrentFile(file);
     setFileName(file.name);
     setUploading(true);
     setStep("parsing");
@@ -83,6 +86,8 @@ export default function CandidateResumePage() {
         warnings: string[];
         resumeText: string;
         resumeFilePath: string;
+        aiParsingSucceeded?: boolean;
+        fallbackUsed?: boolean;
       };
 
       setFullName(String(result.parsed.fullName || meData?.candidate?.full_name || meData?.profile?.full_name || ""));
@@ -99,8 +104,13 @@ export default function CandidateResumePage() {
       setWarnings(result.warnings || []);
       setResumeText(result.resumeText);
       setResumeFilePath(result.resumeFilePath);
+      setFallbackUsed(Boolean(result.fallbackUsed));
       setStep("review");
-      toast.success("Resume parsed! Please review and confirm your profile details.");
+      if (result.fallbackUsed) {
+        toast.warning("AI parsing service was temporarily unavailable. Basic profile fields were extracted locally — please review your details.");
+      } else {
+        toast.success("Resume parsed with AI! Please review and confirm your profile details.");
+      }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "CV Parsing failed");
       setStep("upload");
@@ -244,9 +254,20 @@ export default function CandidateResumePage() {
                 <p className="text-xs text-muted-foreground">Verify and correct fields before final profile confirmation.</p>
               </div>
             </div>
-            <Button size="xs" variant="outline" className="text-xs gap-1 border-white/10" onClick={() => setStep("upload")}>
-              <RotateCcw className="h-3.5 w-3.5" /> Upload Different File
-            </Button>
+            <div className="flex gap-2">
+              {fallbackUsed && currentFile && (
+                <Button
+                  size="xs"
+                  className="gradient-brand text-white text-xs gap-1"
+                  onClick={() => void handleUploadAndParse(currentFile)}
+                >
+                  <RotateCcw className="h-3.5 w-3.5" /> Retry AI Parsing
+                </Button>
+              )}
+              <Button size="xs" variant="outline" className="text-xs gap-1 border-white/10" onClick={() => setStep("upload")}>
+                <RotateCcw className="h-3.5 w-3.5" /> Upload Different File
+              </Button>
+            </div>
           </div>
 
           {/* Warnings Alert */}

@@ -8,6 +8,7 @@ import { autoAssignAssessmentToApplication } from "@/lib/services/assessment-gen
 import { explainMatch } from "@/lib/services/matching.service";
 import { embedAndStoreCandidate, buildCandidateEmbeddingText } from "@/lib/services/embeddings.service";
 
+export const runtime = "nodejs";
 export const maxDuration = 60;
 
 export async function POST(request: Request) {

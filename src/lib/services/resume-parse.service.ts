@@ -1,8 +1,8 @@
-import { getAIProvider } from "@/lib/ai";
+import { getAIProvider, resolveAIConfig } from "@/lib/ai";
 import { extractResumeText, isSupportedResumeMime } from "@/lib/ai/extract-text";
 import { PARSE_SYSTEM_PROMPT, parsedResumeSchema, type ParsedResume } from "@/lib/ai/resume-schema";
 import { ApiError } from "@/lib/api/helpers";
-import type { AICategoryError } from "@/lib/ai/types";
+import type { AICategoryError, ResumeParseDiagnostics } from "@/lib/ai/types";
 import { AIProviderError } from "@/lib/ai/types";
 
 export type ParseResumeResult = {
@@ -11,13 +11,9 @@ export type ParseResumeResult = {
   confidence: number;
   warnings: string[];
   correlationId: string;
-  diagnostics?: {
-    extractionMethod: string;
-    characterCount: number;
-    providerName: string;
-    durationMs: number;
-    fallbackReasonCategory?: AICategoryError;
-  };
+  aiParsingSucceeded: boolean;
+  fallbackUsed: boolean;
+  diagnostics: ResumeParseDiagnostics;
 };
 
 // Recognized skills dictionary for deterministic local parsing fallback
@@ -143,14 +139,32 @@ function classifyErrorCategory(err: unknown): AICategoryError {
   if (/API_KEY|api_key|key is not set|missing_provider_key/i.test(msg)) {
     return "missing_provider_key";
   }
-  if (/401|403|unauthorized|authentication/i.test(msg)) {
+  if (/decryption|app_secret_decryption_failed/i.test(msg)) {
+    return "app_secret_decryption_failed";
+  }
+  if (/401|unauthorized|authentication/i.test(msg)) {
     return "provider_authentication_failed";
   }
-  if (/429|rate limit|quota/i.test(msg)) {
+  if (/402|payment|quota|credits/i.test(msg)) {
+    return "provider_payment_required";
+  }
+  if (/403|forbidden/i.test(msg)) {
+    return "provider_forbidden";
+  }
+  if (/404|model_not_found/i.test(msg)) {
+    return "provider_model_not_found";
+  }
+  if (/429|rate limit/i.test(msg)) {
     return "provider_rate_limited";
   }
   if (/timeout|abort/i.test(msg)) {
     return "provider_timeout";
+  }
+  if (/500|502|503|504|upstream/i.test(msg)) {
+    return "provider_upstream_error";
+  }
+  if (/empty|no content/i.test(msg)) {
+    return "provider_empty_response";
   }
   if (/json|no json object/i.test(msg)) {
     return "provider_invalid_json";
@@ -170,55 +184,70 @@ export async function parseResumeBuffer(
   const correlationId = options?.correlationId || `req_${crypto.randomUUID().slice(0, 8)}`;
   const startTime = performance.now();
 
-  console.log(`[CV-Parse Diagnostics][${correlationId}] Request accepted: filename="${fileName}", mime="${mimeType}", size=${buffer.byteLength} bytes`);
+  console.log(`[CV-Parse Diagnostics][${correlationId}][resume_parse_started] filename="${fileName}", mime="${mimeType}", size=${buffer?.byteLength ?? 0} bytes`);
 
   if (!buffer || buffer.byteLength === 0) {
+    console.error(`[CV-Parse Diagnostics][${correlationId}][upload_validated] Empty document uploaded.`);
     throw new ApiError(400, "Empty document uploaded. Select a valid PDF or DOCX file.");
   }
   if (!isSupportedResumeMime(mimeType, fileName)) {
+    console.error(`[CV-Parse Diagnostics][${correlationId}][upload_validated] Unsupported format: mime="${mimeType}", file="${fileName}"`);
     throw new ApiError(400, `Unsupported file format (${fileName}). Upload a valid PDF or DOCX file up to 10MB.`);
   }
   if (buffer.byteLength > 10 * 1024 * 1024) {
+    console.error(`[CV-Parse Diagnostics][${correlationId}][upload_validated] File size ${buffer.byteLength} exceeds 10MB limit.`);
     throw new ApiError(400, "File exceeds 10MB limit. Upload a smaller PDF or DOCX.");
   }
+
+  console.log(`[CV-Parse Diagnostics][${correlationId}][upload_validated] Validation passed.`);
+  console.log(`[CV-Parse Diagnostics][${correlationId}][buffer_created] Buffer allocated: size=${buffer.byteLength} bytes.`);
 
   let resumeText = "";
   let extractionMethod = "plain_text";
   let characterCount = 0;
+  let extractionSucceeded = false;
 
   try {
-    console.log(`[CV-Parse Diagnostics][${correlationId}] PDF/Text extraction started for "${fileName}"...`);
+    console.log(`[CV-Parse Diagnostics][${correlationId}][text_extraction_started] Method check started for "${fileName}"...`);
     const extractRes = await extractResumeText(buffer, mimeType, fileName);
     resumeText = extractRes.text;
     extractionMethod = extractRes.method;
     characterCount = extractRes.characterCount;
-    console.log(`[CV-Parse Diagnostics][${correlationId}] Text extraction complete: method="${extractionMethod}", characterCount=${characterCount}`);
+    extractionSucceeded = true;
+    console.log(`[CV-Parse Diagnostics][${correlationId}][text_extraction_completed] Succeeded: method="${extractionMethod}", characterCount=${characterCount}`);
   } catch (extractErr) {
-    console.error(`[CV-Parse Diagnostics][${correlationId}] Text extraction failed: category="pdf_text_extraction_failed"`, extractErr);
+    console.error(`[CV-Parse Diagnostics][${correlationId}][text_extraction_completed] Failed: category="pdf_text_extraction_failed"`, extractErr);
     if (extractErr instanceof ApiError) throw extractErr;
-    throw new ApiError(400, `Could not read document contents (${fileName}). Ensure the file is not password-protected or corrupted.`);
+    throw new ApiError(400, `We could not read text from this document (${fileName}). Please upload a text-based, non-password-protected PDF or DOCX.`);
   }
 
   const cleanAlphanumeric = resumeText.replace(/[^a-zA-Z0-9\u0600-\u06FF]/g, "");
   if (!resumeText || cleanAlphanumeric.length < 20) {
-    console.warn(`[CV-Parse Diagnostics][${correlationId}] Document text too short (clean length=${cleanAlphanumeric.length}). Unreadable or scanned file.`);
+    console.warn(`[CV-Parse Diagnostics][${correlationId}][text_extraction_completed] Document text too short (clean length=${cleanAlphanumeric.length}). Scanned document.`);
     throw new ApiError(
       400,
-      "No readable text found in document. If this is a scanned image or scanned PDF, please upload a text-based PDF or DOCX file."
+      "We could not read text from this document. If this is a scanned image or scanned PDF, please upload a text-based PDF or DOCX file."
     );
   }
 
   let raw: unknown = null;
   let aiFailed = false;
   let providerName = "unknown";
+  let modelName = "unknown";
+  let configurationSource: "organization" | "environment" = "environment";
   let fallbackReasonCategory: AICategoryError | undefined = undefined;
 
   try {
-    console.log(`[CV-Parse Diagnostics][${correlationId}] Selecting AI provider...`);
-    const provider = await getAIProvider(options?.organizationId);
-    providerName = provider.name;
-    console.log(`[CV-Parse Diagnostics][${correlationId}] Provider selected: "${providerName}". Sending chatJSON request...`);
+    const configRes = await resolveAIConfig(options?.organizationId);
+    configurationSource = configRes.source;
+    providerName = configRes.providerName;
+    modelName = configRes.chatModel || "default";
 
+    console.log(`[CV-Parse Diagnostics][${correlationId}][ai_configuration_resolved] provider="${providerName}", model="${modelName}", source="${configurationSource}"`);
+
+    const provider = await getAIProvider(options?.organizationId);
+
+    console.log(`[CV-Parse Diagnostics][${correlationId}][ai_request_started] Sending chatJSON request...`);
     raw = await provider.chatJSON(
       [
         { role: "system", content: PARSE_SYSTEM_PROMPT },
@@ -229,31 +258,54 @@ export async function parseResumeBuffer(
       ],
       { temperature: 0.1, maxTokens: 2500 }
     );
-    console.log(`[CV-Parse Diagnostics][${correlationId}] Provider response received. JSON decoding succeeded.`);
+    console.log(`[CV-Parse Diagnostics][${correlationId}][ai_response_received] AI provider response received.`);
+    console.log(`[CV-Parse Diagnostics][${correlationId}][ai_json_parsed] JSON parsing succeeded.`);
   } catch (aiErr) {
     fallbackReasonCategory = classifyErrorCategory(aiErr);
-    console.warn(`[CV-Parse Diagnostics][${correlationId}] AI provider parse failed: category="${fallbackReasonCategory}", details:`, aiErr instanceof Error ? aiErr.message : aiErr);
+    console.warn(`[CV-Parse Diagnostics][${correlationId}][ai_response_received] AI provider parse failed: category="${fallbackReasonCategory}", details:`, aiErr instanceof Error ? aiErr.message : aiErr);
     aiFailed = true;
   }
 
-  let parsed: ParsedResume;
+  let parsed: ParsedResume | null = null;
   const extraWarnings: string[] = [];
 
   if (!aiFailed && raw) {
     try {
       parsed = parsedResumeSchema.parse(raw);
-      console.log(`[CV-Parse Diagnostics][${correlationId}] JSON schema validation succeeded.`);
+      console.log(`[CV-Parse Diagnostics][${correlationId}][ai_schema_validated] JSON schema validation succeeded.`);
     } catch (schemaErr) {
-      fallbackReasonCategory = "resume_schema_validation_failed";
-      console.warn(`[CV-Parse Diagnostics][${correlationId}] Schema validation failed: category="${fallbackReasonCategory}". Using local parser fallback.`, schemaErr);
-      parsed = parseResumeTextLocally(resumeText, fileName);
+      console.warn(`[CV-Parse Diagnostics][${correlationId}][ai_schema_validated] Initial schema validation failed. Attempting 1 repair request...`, schemaErr);
+
+      // 1 Schema Repair Attempt with AI Provider
+      try {
+        const provider = await getAIProvider(options?.organizationId);
+        const repairRaw = await provider.chatJSON(
+          [
+            { role: "system", content: PARSE_SYSTEM_PROMPT },
+            {
+              role: "user",
+              content: `The previous extraction failed Zod schema validation. Please fix array fields, optional strings, and numeric types strictly matching the schema:\n\n<INPUT>\n${JSON.stringify(raw).slice(0, 3000)}\n</INPUT>`,
+            },
+          ],
+          { temperature: 0.0, maxTokens: 2500 }
+        );
+        parsed = parsedResumeSchema.parse(repairRaw);
+        console.log(`[CV-Parse Diagnostics][${correlationId}][ai_schema_validated] Schema repair succeeded.`);
+      } catch (repairErr) {
+        fallbackReasonCategory = "resume_schema_validation_failed";
+        console.warn(`[CV-Parse Diagnostics][${correlationId}][fallback_activated] Schema repair failed: category="${fallbackReasonCategory}". Activating local fallback.`, repairErr);
+        aiFailed = true;
+      }
     }
-  } else {
-    parsed = parseResumeTextLocally(resumeText, fileName);
-    extraWarnings.push("AI parsing service was unavailable. Basic profile fields were extracted locally — please review and verify your details before confirming.");
   }
 
-  // Ensure default candidate name if AI extracted blank name
+  if (aiFailed || !parsed) {
+    console.log(`[CV-Parse Diagnostics][${correlationId}][fallback_activated] Activating deterministic local regex fallback parser...`);
+    parsed = parseResumeTextLocally(resumeText, fileName);
+    extraWarnings.push("The document text was extracted, but AI profile structuring is temporarily unavailable. Basic details were extracted locally — please review and verify all fields before confirming.");
+  }
+
+  // Ensure candidate name fallback if blank
   if (!parsed.fullName || parsed.fullName === "Candidate") {
     const nameFromFileName = fileName.replace(/\.[^/.]+$/, "").replace(/[_-]/g, " ").trim();
     if (nameFromFileName.length > 2) {
@@ -270,7 +322,26 @@ export async function parseResumeBuffer(
   }
 
   const durationMs = Math.round(performance.now() - startTime);
-  console.log(`[CV-Parse Diagnostics][${correlationId}] Processing complete in ${durationMs}ms: method="${extractionMethod}", characters=${characterCount}, provider="${providerName}", fallbackUsed=${aiFailed}, category="${fallbackReasonCategory ?? "none"}"`);
+
+  const diagnostics: ResumeParseDiagnostics = {
+    requestId: correlationId,
+    extraction: {
+      succeeded: extractionSucceeded,
+      method: extractionMethod,
+      characterCount,
+    },
+    aiParsing: {
+      succeeded: !aiFailed,
+      provider: providerName,
+      model: modelName,
+      fallbackUsed: aiFailed,
+      errorCode: fallbackReasonCategory ?? null,
+    },
+    configurationSource,
+    totalDurationMs: durationMs,
+  };
+
+  console.log(`[CV-Parse Diagnostics][${correlationId}][resume_parse_completed] Duration=${durationMs}ms: extraction="${extractionMethod}" (${characterCount} chars), provider="${providerName}", fallbackUsed=${aiFailed}, errorCode="${fallbackReasonCategory ?? "none"}"`);
 
   return {
     parsed,
@@ -278,12 +349,8 @@ export async function parseResumeBuffer(
     confidence,
     warnings,
     correlationId,
-    diagnostics: {
-      extractionMethod,
-      characterCount,
-      providerName,
-      durationMs,
-      fallbackReasonCategory,
-    },
+    aiParsingSucceeded: !aiFailed,
+    fallbackUsed: aiFailed,
+    diagnostics,
   };
 }

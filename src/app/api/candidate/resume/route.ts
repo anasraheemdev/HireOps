@@ -4,6 +4,7 @@ import { requireCandidateId } from "@/lib/services/candidate-portal.service";
 import { parseResumeBuffer } from "@/lib/services/resume-parse.service";
 import { isSupportedResumeMime } from "@/lib/ai/extract-text";
 
+export const runtime = "nodejs";
 export const maxDuration = 60;
 
 export async function POST(request: Request) {
@@ -38,9 +39,10 @@ export async function POST(request: Request) {
     });
 
     if (upErr) {
-      console.warn("[Candidate Resume API] Storage upload warning (resumeFilePath omitted):", upErr.message);
+      console.warn(`[CV-Parse Diagnostics][${correlationId}][storage_upload_completed] Failed: category="storage_upload_failed"`, upErr.message);
     } else {
       resumeFilePath = privatePath;
+      console.log(`[CV-Parse Diagnostics][${correlationId}][storage_upload_completed] Succeeded: path="${privatePath}"`);
 
       try {
         await supabase.from("candidate_documents").insert({
@@ -57,9 +59,6 @@ export async function POST(request: Request) {
       }
     }
 
-    // Server-side diagnostic log (safe metadata only)
-    console.log(`[Candidate Resume API] Parsed resume for candidate ${candidateId} (${fileName}, ${file.size} bytes, storage: ${resumeFilePath ? "stored" : "skipped"})`);
-
     return NextResponse.json({
       data: {
         parsed: parseResult.parsed,
@@ -68,6 +67,10 @@ export async function POST(request: Request) {
         resumeText: parseResult.resumeText,
         resumeFilePath,
         fileName,
+        correlationId: parseResult.correlationId,
+        aiParsingSucceeded: parseResult.aiParsingSucceeded,
+        fallbackUsed: parseResult.fallbackUsed,
+        diagnostics: parseResult.diagnostics,
       },
     });
   } catch (err) {
