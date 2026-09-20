@@ -18,7 +18,7 @@ export async function POST(request: Request) {
     const { user, profile } = await requirePermission("portal.admin", "admin.users.manage");
     if (!profile.organizationId) throw new ApiError(400, "No organization assigned to your profile");
     const body = inviteUserSchema.parse(await request.json());
-    const data = await inviteUser(profile.organizationId, user.id, body);
+    const data = await inviteUser(profile.organizationId, user.id, profile.portalRole || "candidate", body);
     return NextResponse.json({ data }, { status: 201 });
   } catch (err) {
     return jsonError(err);

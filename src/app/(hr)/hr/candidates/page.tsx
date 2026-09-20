@@ -635,7 +635,6 @@ function CandidatesWorkspace() {
                 onValueChange={(stageVal) => {
                   if (!stageVal || !selectedRows.length) return;
                   let count = 0;
-                  const isShortlist = stageVal === "Shortlist";
                   const isReject = stageVal === "Reject";
                   selectedRows.forEach((cand) => {
                     if (cand.applicationId) {

@@ -95,6 +95,26 @@ export class OpenRouterProvider implements AIProvider {
       }
 
       if (!res.ok) {
+        // If 429 rate limit or 503 upstream error, retry with fallback models
+        if (res.status === 429 || res.status === 503) {
+          const fallbackModels = [
+            "meta-llama/llama-3.3-70b-instruct",
+            "google/gemini-2.0-flash-001",
+            "deepseek/deepseek-chat",
+          ];
+          for (const fallbackModel of fallbackModels) {
+            if (fallbackModel === this.chatModel) continue;
+            await new Promise((r) => setTimeout(r, 1000));
+            const retryRes = await post({ ...bodyBase, model: fallbackModel });
+            if (retryRes.ok) {
+              res = retryRes;
+              break;
+            }
+          }
+        }
+      }
+
+      if (!res.ok) {
         throw new AIProviderError(
           "openrouter",
           `chat completion failed (${res.status}): ${errBody.slice(0, 300)}`

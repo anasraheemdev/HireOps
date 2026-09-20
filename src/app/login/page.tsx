@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
 import { motion } from "framer-motion";
 import {
   Mail,
@@ -12,7 +11,6 @@ import {
   User,
   Phone,
   Briefcase,
-  ShieldCheck,
   Loader2,
   ArrowRight,
   Sparkles,
@@ -20,7 +18,6 @@ import {
   Users,
   Bot,
   AlertCircle,
-  MailCheck,
   CheckCircle2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -30,7 +27,6 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useLang } from "@/lib/i18n";
 import { LanguageSwitcher } from "@/components/shared/language-switcher";
-import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
 import { HireOpsLogo } from "@/components/brand/hireops-logo";
@@ -105,7 +101,7 @@ export default function LoginPage() {
     setSignupLoading(true);
 
     try {
-      const { data: authData, error: signUpError } = await supabase.auth.signUp({
+      const { error: signUpError } = await supabase.auth.signUp({
         email: signupEmail,
         password: signupPassword,
         options: {

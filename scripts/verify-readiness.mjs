@@ -66,10 +66,12 @@ try{
  const exam=await api(hr.cookie,'/api/assessments','POST',{title:`Readiness exam ${stamp}`,durationMinutes:10,questions:[{prompt:'Which language runs in web browsers?',questionType:'multiple_choice',options:['JavaScript','SQL'],correctAnswer:'JavaScript',points:2},{prompt:'Which database is relational?',questionType:'multiple_choice',options:['PostgreSQL','CSS'],correctAnswer:'PostgreSQL',points:1}]});
  check(exam.status===201,'Create exam with validated questions');created.assessments.push(exam.data.id);
  const assignment=await api(hr.cookie,'/api/assessments/assignments','POST',{assessmentId:exam.data.id,applicationId:appId});check(assignment.status===201,'Assign exam to candidate application');
- const examUrl=`/api/assessments/assignments/${assignment.data.id}`;
- check((await api(other.cookie,examUrl)).status===404,'Reject another candidate reading an exam');
+ const examUrl=`/api/candidate/assessments/${assignment.data.id}`;
+ check((await api(other.cookie,examUrl)).status===403||(await api(other.cookie,examUrl)).status===404,'Reject another candidate reading an exam');
  check((await candidateUser.client.from('assessment_questions').select('*').eq('assessment_id',exam.data.id)).data?.length===0,'Block direct database answer-key access');
- check((await api(candidateUser.cookie,examUrl,'POST',{action:'start'})).status===200,'Start server-timed exam');
+ const startRes=await api(candidateUser.cookie,examUrl,'POST',{action:'start'});
+ if (startRes.status !== 200) console.log('START_RES_DIAGNOSTIC:', startRes);
+ check(startRes.status===200,'Start server-timed exam');
  const started=await api(candidateUser.cookie,examUrl);
  check(started.data.questions.every(q=>!('correct_answer' in q)),'Never expose answer keys in exam response');
  const answers=Object.fromEntries(started.data.questions.map(q=>[q.id,q.options[0]]));

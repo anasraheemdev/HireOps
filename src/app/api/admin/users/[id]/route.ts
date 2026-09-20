@@ -8,7 +8,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     const { user, profile } = await requirePermission("portal.admin", "admin.users.manage");
     if (!profile.organizationId) throw new ApiError(400, "No organization assigned to your profile");
     const body = updateUserSchema.parse(await request.json());
-    const data = await updateUser(profile.organizationId, user.id, id, body);
+    const data = await updateUser(profile.organizationId, user.id, profile.portalRole || "candidate", id, body);
     return NextResponse.json({ data });
   } catch (err) {
     return jsonError(err);

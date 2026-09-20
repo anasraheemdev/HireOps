@@ -15,6 +15,57 @@ export function useMyApplicationsQuery() {
   });
 }
 
+export function useCandidateJobRecommendationsQuery(threshold = 55) {
+  return useQuery({
+    queryKey: ["candidate-job-recommendations", threshold],
+    queryFn: () =>
+      apiFetch<{
+        candidateId: string;
+        organizationId: string;
+        isConfirmed: boolean;
+        minThreshold: number;
+        recommendations: Array<{
+          id: string;
+          organizationId: string;
+          title: string;
+          description?: string | null;
+          department?: string | null;
+          location?: string | null;
+          employmentType?: string | null;
+          level?: string | null;
+          status: string;
+          requiredSkills: string[];
+          niceToHaveSkills?: string[];
+          minExperienceYears: number;
+          relevanceScore: number;
+          isApplied: boolean;
+          applicationId?: string | null;
+          matchDetail: {
+            overallScore: number;
+            semanticScore: number;
+            requiredSkillsScore: number;
+            preferredSkillsScore: number;
+            experienceScore: number;
+            educationScore: number;
+            matchedRequiredSkills: string[];
+            missingRequiredSkills: string[];
+            matchedPreferredSkills: string[];
+            missingPreferredSkills: string[];
+            experienceComparison: {
+              candidateYears: number;
+              requiredYears: number;
+              isMet: boolean;
+            };
+            explanation: string;
+            reasoningBullets: string[];
+          };
+        }>;
+        appliedJobs: Array<unknown>;
+        totalOpenJobsCount: number;
+      }>(`/api/candidate/jobs?threshold=${threshold}`),
+  });
+}
+
 export function useApplyMutation() {
   const qc = useQueryClient();
   return useMutation({

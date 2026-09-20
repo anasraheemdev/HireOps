@@ -320,60 +320,43 @@ export function InterviewSessionView({
             <div ref={bottomRef} />
           </div>
 
-          {isCandidatePortal ? (
-            /* CANDIDATE VOICE-ONLY CONTROL BAR */
-            <div className="p-4 border-t border-white/5 bg-white/[0.02] flex flex-col sm:flex-row items-center justify-between gap-3">
-              <div className="flex items-center gap-2 text-xs text-muted-foreground w-full sm:w-auto">
-                <Button
-                  type="button"
-                  variant={listening ? "default" : "outline"}
-                  size="sm"
-                  className={cn(
-                    "cursor-pointer rounded-full h-10 px-4 gap-2",
-                    listening && "bg-rose-600 text-white animate-pulse"
-                  )}
-                  onClick={toggleMic}
-                  disabled={session?.status === "completed"}
-                >
-                  {listening ? <AudioLines className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
-                  <span>{listening ? "Listening to Voice..." : "Speak Response"}</span>
-                </Button>
-                {listening && <span className="text-[11px] text-emerald-400 font-medium">Recording mic...</span>}
-              </div>
-
-              <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
-                <Button
-                  type="button"
-                  size="sm"
-                  className="gradient-brand text-white cursor-pointer gap-2"
-                  disabled={thinking || !input.trim() || session?.status === "completed"}
-                  onClick={() => void sendStream(input)}
-                >
-                  <Send className="h-3.5 w-3.5" /> Send Voice Answer
-                </Button>
-              </div>
+          {session?.status === "completed" ? (
+            <div className="p-4 border-t border-white/5 bg-white/[0.02] text-center text-xs text-muted-foreground">
+              This interview has been completed and submitted. Transcripts are locked.
             </div>
           ) : (
-            /* HR & ADMIN TEXT & SPEECH INPUT BAR */
             <form
-              className="p-3 border-t border-white/5 flex gap-2"
+              className="p-3 border-t border-white/5 flex flex-wrap sm:flex-nowrap gap-2 items-center"
               onSubmit={(e) => {
                 e.preventDefault();
-                void sendStream(input);
+                if (input.trim()) void sendStream(input);
               }}
             >
-              <Button type="button" variant="outline" size="icon" className={cn("cursor-pointer", listening && "border-primary text-primary")} onClick={toggleMic}>
+              <Button
+                type="button"
+                variant={listening ? "default" : "outline"}
+                size="icon"
+                className={cn("cursor-pointer shrink-0", listening && "bg-rose-600 text-white animate-pulse")}
+                onClick={toggleMic}
+                title={listening ? "Stop voice recording" : "Dictate with microphone"}
+              >
                 {listening ? <AudioLines className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
               </Button>
               <input
-                className="flex-1 rounded-lg border border-white/10 bg-white/5 px-3 text-sm"
+                className="flex-1 min-w-[200px] rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm focus:outline-none focus:border-primary"
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
-                placeholder="Type or dictate your answer…"
-                disabled={session?.status === "completed"}
+                placeholder="Type or dictate your answer here..."
+                disabled={thinking || session?.status === "completed"}
               />
-              <Button type="submit" size="icon" className="gradient-brand text-white cursor-pointer" disabled={thinking || session?.status === "completed"}>
-                <Send className="h-4 w-4" />
+              <Button
+                type="submit"
+                size="sm"
+                className="gradient-brand text-white cursor-pointer gap-1.5 shrink-0"
+                disabled={thinking || !input.trim() || session?.status === "completed"}
+              >
+                <Send className="h-3.5 w-3.5" />
+                <span>Send</span>
               </Button>
             </form>
           )}

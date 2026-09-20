@@ -8,7 +8,13 @@ export type ApplicationStage =
   | "applied"
   | "screening"
   | "assessment"
+  | "assessment_pending"
+  | "assessment_completed"
   | "ai_interview"
+  | "interview_pending"
+  | "interview_completed"
+  | "under_hr_review"
+  | "shortlisted"
   | "final_interview"
   | "offer"
   | "hired"
@@ -103,6 +109,7 @@ export interface Database {
           id: string;
           organization_id: string;
           department_id: string | null;
+          reference_code: string | null;
           title: string;
           location: string;
           employment_type: JobType;
@@ -122,6 +129,7 @@ export interface Database {
           created_by: string | null;
           embedding: number[] | string | null;
           embedding_updated_at: string | null;
+          assessment_id: string | null;
           created_at: string;
           updated_at: string;
         };
@@ -143,6 +151,8 @@ export interface Database {
           location: string | null;
           nationality: string | null;
           headline: string | null;
+          summary: string | null;
+          is_confirmed: boolean;
           experience_years: number;
           source: string | null;
           avatar_color: string;
@@ -492,6 +502,34 @@ export interface Database {
         };
         Insert: Partial<Database["public"]["Tables"]["help_articles"]["Row"]> & { slug: string; title: string; body: string };
         Update: Partial<Database["public"]["Tables"]["help_articles"]["Row"]>;
+        Relationships: [];
+      };
+      candidate_invitations: {
+        Row: {
+          id: string;
+          organization_id: string;
+          job_id: string;
+          candidate_id: string;
+          token_hash: string;
+          email: string;
+          full_name: string;
+          status: "active" | "used" | "expired" | "revoked";
+          expires_at: string;
+          created_by: string;
+          created_at: string;
+          used_at: string | null;
+        };
+        Insert: Partial<Database["public"]["Tables"]["candidate_invitations"]["Row"]> & {
+          organization_id: string;
+          job_id: string;
+          candidate_id: string;
+          token_hash: string;
+          email: string;
+          full_name: string;
+          created_by: string;
+          expires_at: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["candidate_invitations"]["Row"]>;
         Relationships: [];
       };
     };

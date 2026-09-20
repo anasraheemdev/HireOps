@@ -28,9 +28,12 @@ type Step = "cv_upload" | "assessment" | "ai_interview" | "completed";
 
 interface Question {
   id: string;
-  question: string;
-  type: "multiple_choice" | "essay";
+  prompt?: string;
+  question?: string;
+  questionType?: "multiple_choice" | "short_answer" | "essay" | "free_text";
+  type?: "multiple_choice" | "short_answer" | "essay" | "free_text";
   options?: string[];
+  points?: number;
 }
 
 export function CandidateApplicationWizard({
@@ -112,11 +115,18 @@ export function CandidateApplicationWizard({
     setLoadingExam(true);
     try {
       const data = await apiFetch<{
-        assignment: Record<string, unknown>;
-        exam: { questions: Question[] };
+        assignmentId: string;
+        remainingSeconds?: number;
+        answers?: Record<string, string>;
+        questions?: Question[];
+        exam?: { questions?: Question[] };
       }>(`/api/candidate/assessments/${assignId}`);
 
-      setQuestions(data.exam.questions || []);
+      const qList = data.questions || data.exam?.questions || [];
+      setQuestions(qList);
+      if (data.answers) {
+        setAnswers((prev) => ({ ...data.answers, ...prev }));
+      }
     } catch (err) {
       toast.error("Error loading assessment exam questions");
     } finally {
@@ -129,30 +139,25 @@ export function CandidateApplicationWizard({
     if (!assignmentId) return;
     setSubmittingExam(true);
     try {
-      const res = await fetch(`/api/candidate/assessments/${assignmentId}`, {
+      const data = await apiFetch<{
+        id: string;
+        status: string;
+        interviewSessionId?: string | null;
+        nextUrl?: string | null;
+      }>(`/api/candidate/assessments/${assignmentId}`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ answers }),
       });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error || "Failed to submit assessment");
 
       toast.success("Assessment exam submitted!");
 
-      if (sessionId) {
-        await initInterviewSession(sessionId);
-        setCurrentStep("ai_interview");
+      const sessId = data.interviewSessionId || sessionId;
+      if (data.nextUrl) {
+        router.push(data.nextUrl);
+      } else if (sessId) {
+        router.push(`/candidate/interviews/${sessId}`);
       } else {
-        const sessionRes = await apiFetch<{ session: { id: string } }>(
-          "/api/candidate/interviews",
-          {
-            method: "POST",
-            body: JSON.stringify({ jobId: job.id }),
-          }
-        );
-        setSessionId(sessionRes.session.id);
-        await initInterviewSession(sessionRes.session.id);
-        setCurrentStep("ai_interview");
+        setCurrentStep("completed");
       }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Assessment submission failed");
@@ -448,37 +453,50 @@ export function CandidateApplicationWizard({
               </div>
             ) : (
               <div className="space-y-4 pt-2">
-                {questions.map((q, idx) => (
-                  <div key={q.id || idx} className="p-3.5 rounded-lg bg-white/5 border border-white/10 space-y-2.5">
-                    <p className="text-xs font-semibold">
-                      Q{idx + 1}. {q.question}
-                    </p>
+                {questions.map((q, idx) => {
+                  const promptText = q.prompt || q.question || "";
+                  const qType = q.questionType || q.type || "multiple_choice";
+                  const optionsList = Array.isArray(q.options) ? q.options : [];
 
-                    {q.type === "multiple_choice" && q.options ? (
-                      <RadioGroup
-                        value={answers[q.id] || ""}
-                        onValueChange={(val) => setAnswers((prev) => ({ ...prev, [q.id]: val }))}
-                        className="space-y-1.5"
-                      >
-                        {q.options.map((opt, oIdx) => (
-                          <div key={oIdx} className="flex items-center gap-2 text-xs">
-                            <RadioGroupItem value={opt} id={`q-${q.id}-opt-${oIdx}`} />
-                            <Label htmlFor={`q-${q.id}-opt-${oIdx}`} className="text-xs cursor-pointer">
-                              {opt}
-                            </Label>
-                          </div>
-                        ))}
-                      </RadioGroup>
-                    ) : (
-                      <textarea
-                        className="w-full min-h-[70px] rounded-md border border-white/10 bg-white/5 p-2 text-xs"
-                        placeholder="Type your explanation here…"
-                        value={answers[q.id] || ""}
-                        onChange={(e) => setAnswers((prev) => ({ ...prev, [q.id]: e.target.value }))}
-                      />
-                    )}
-                  </div>
-                ))}
+                  return (
+                    <div key={q.id || idx} className="p-3.5 rounded-lg bg-white/5 border border-white/10 space-y-2.5">
+                      <div className="flex items-center justify-between">
+                        <p className="text-xs font-semibold">
+                          Q{idx + 1}. {promptText}
+                        </p>
+                        {q.points && (
+                          <Badge variant="outline" className="text-[9px] bg-white/5 border-white/10">
+                            {q.points} pts
+                          </Badge>
+                        )}
+                      </div>
+
+                      {qType === "multiple_choice" && optionsList.length > 0 ? (
+                        <RadioGroup
+                          value={answers[q.id] || ""}
+                          onValueChange={(val) => setAnswers((prev) => ({ ...prev, [q.id]: val }))}
+                          className="space-y-1.5"
+                        >
+                          {optionsList.map((opt, oIdx) => (
+                            <div key={oIdx} className="flex items-center gap-2 text-xs">
+                              <RadioGroupItem value={opt} id={`q-${q.id}-opt-${oIdx}`} />
+                              <Label htmlFor={`q-${q.id}-opt-${oIdx}`} className="text-xs cursor-pointer">
+                                {opt}
+                              </Label>
+                            </div>
+                          ))}
+                        </RadioGroup>
+                      ) : (
+                        <textarea
+                          className="w-full min-h-[75px] rounded-md border border-white/10 bg-white/5 p-2 text-xs"
+                          placeholder={qType === "essay" ? "Provide a detailed response covering key situational steps..." : "Type your answer..."}
+                          value={answers[q.id] || ""}
+                          onChange={(e) => setAnswers((prev) => ({ ...prev, [q.id]: e.target.value }))}
+                        />
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             )}
           </div>

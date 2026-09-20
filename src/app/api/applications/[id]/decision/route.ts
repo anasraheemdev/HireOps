@@ -18,6 +18,7 @@ export async function POST(request: Request, { params }: Params) {
           decision: z.enum(["shortlist", "reject"]),
           candidateId: z.string().uuid(),
           jobId: z.string().uuid(),
+          rejectionReason: z.string().optional(),
         })
         .safeParse(raw);
       if (!parsed.success) throw new ApiError(400, "candidateId, jobId, and decision are required");
@@ -44,13 +45,31 @@ export async function POST(request: Request, { params }: Params) {
         app = created;
       }
 
-      const result = await setApplicationDecision(supabase, app.id, parsed.data.decision);
+      const result = await setApplicationDecision(supabase, app.id, {
+        decision: parsed.data.decision,
+        rejectionReason: parsed.data.rejectionReason,
+        actorId: user.id,
+      });
       return NextResponse.json({ data: result });
     }
 
-    const parsed = z.object({ decision: z.enum(["shortlist", "reject"]) }).safeParse(raw);
-    if (!parsed.success) throw new ApiError(400, "decision must be shortlist or reject");
-    const result = await setApplicationDecision(supabase, id, parsed.data.decision);
+    const payloadSchema = z.object({
+      stage: z.string().optional(),
+      decision: z.enum(["shortlist", "reject"]).optional(),
+      rejectionReason: z.string().optional(),
+      scoreOverride: z
+        .object({
+          matchScore: z.number().min(0).max(100).optional(),
+          reason: z.string().min(1, "Reason is required for score overrides"),
+        })
+        .optional(),
+    });
+
+    const body = payloadSchema.parse(raw);
+    const result = await setApplicationDecision(supabase, id, {
+      ...body,
+      actorId: user.id,
+    });
     return NextResponse.json({ data: result });
   } catch (err) {
     return jsonError(err);

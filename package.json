@@ -14,7 +14,9 @@
     "start": "next start",
     "lint": "eslint",
     "verify:core": "node --import tsx scripts/verify-core.ts && node scripts/verify-workspace-stores.cjs",
-    "verify:readiness": "node scripts/verify-readiness.mjs"
+    "verify:readiness": "node scripts/verify-readiness.mjs",
+    "seed:oia-jobs": "node --import tsx scripts/seed-oia-jobs.ts",
+    "verify:job-seed": "node --import tsx scripts/verify-oia-job-seed.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.6.0",

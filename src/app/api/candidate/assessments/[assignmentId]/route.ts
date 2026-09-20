@@ -3,6 +3,7 @@ import { z } from "zod";
 import { requireProfile, jsonError, ApiError } from "@/lib/api/helpers";
 import { createAdminSupabaseClient } from "@/lib/supabase/admin";
 import { getAIProvider } from "@/lib/ai";
+import { sanitizeQuestionForCandidate } from "@/lib/assessment-schema";
 
 export async function GET(
   request: Request,
@@ -12,7 +13,7 @@ export async function GET(
     const { assignmentId } = await params;
     const { supabase, profile } = await requireProfile();
 
-    if (!profile.candidateId) {
+    if (!profile.candidateId && profile.portalRole !== "super_admin" && profile.portalRole !== "hr") {
       throw new ApiError(403, "No candidate profile linked to this account");
     }
 
@@ -21,7 +22,7 @@ export async function GET(
       .select(`
         id, status, score, started_at, completed_at, answers, grading_details,
         assessments ( id, title, description, difficulty, duration_minutes ),
-        applications ( id, candidate_id )
+        applications ( id, candidate_id, job_id )
       `)
       .eq("id", assignmentId)
       .single();
@@ -31,14 +32,16 @@ export async function GET(
     }
 
     const app = Array.isArray(assignment.applications) ? assignment.applications[0] : assignment.applications;
-    if (app?.candidate_id !== profile.candidateId && profile.portalRole !== "super_admin" && profile.portalRole !== "hr") {
+    if (
+      profile.portalRole === "candidate" &&
+      app?.candidate_id !== profile.candidateId
+    ) {
       throw new ApiError(403, "Access denied to this assessment");
     }
 
     const assessmentObj = Array.isArray(assignment.assessments) ? assignment.assessments[0] : assignment.assessments;
     if (!assessmentObj) throw new ApiError(404, "Assessment template missing");
 
-    // Admin client to read questions safely
     const admin = createAdminSupabaseClient();
     const { data: questions } = await admin
       .from("assessment_questions")
@@ -46,34 +49,43 @@ export async function GET(
       .eq("assessment_id", assessmentObj.id)
       .order("sort_order", { ascending: true });
 
-    // Mark as in_progress if first open
-    if (assignment.status === "pending") {
+    // Server-authoritative timer initialization
+    let startedAt = assignment.started_at;
+    if (assignment.status === "pending" || !startedAt) {
+      startedAt = new Date().toISOString();
       await admin
         .from("assessment_assignments")
-        .update({ status: "in_progress", started_at: new Date().toISOString() })
+        .update({ status: "in_progress", started_at: startedAt })
         .eq("id", assignmentId);
     }
+
+    const durationMinutes = Number(assessmentObj.duration_minutes || 30);
+    const startTimeMs = new Date(startedAt).getTime();
+    const expiresAtMs = startTimeMs + durationMinutes * 60 * 1000;
+    const nowMs = Date.now();
+    const remainingSeconds = Math.max(0, Math.floor((expiresAtMs - nowMs) / 1000));
+
+    const sanitizedQuestions = (questions ?? []).map((q) => sanitizeQuestionForCandidate(q));
 
     return NextResponse.json({
       data: {
         assignmentId: assignment.id,
         status: assignment.status === "pending" ? "in_progress" : assignment.status,
         score: assignment.score,
-        startedAt: assignment.started_at || new Date().toISOString(),
+        startedAt,
         completedAt: assignment.completed_at,
+        expiresAt: new Date(expiresAtMs).toISOString(),
+        remainingSeconds,
         assessment: {
           id: assessmentObj.id,
           title: assessmentObj.title,
           description: assessmentObj.description,
-          durationMinutes: assessmentObj.duration_minutes,
+          durationMinutes,
         },
-        questions: (questions ?? []).map((q) => ({
-          id: q.id,
-          prompt: q.prompt,
-          questionType: q.question_type,
-          options: Array.isArray(q.options) ? q.options : [],
-          points: q.points,
-        })),
+        questions: sanitizedQuestions,
+        exam: {
+          questions: sanitizedQuestions,
+        },
         answers: assignment.answers || {},
         gradingDetails: assignment.grading_details || {},
       },
@@ -91,21 +103,25 @@ export async function POST(
     const { assignmentId } = await params;
     const { supabase, profile } = await requireProfile();
 
-    if (!profile.candidateId) {
+    if (!profile.candidateId && profile.portalRole !== "super_admin" && profile.portalRole !== "hr") {
       throw new ApiError(403, "No candidate profile linked to account");
     }
 
     const body = z
       .object({
-        answers: z.record(z.string(), z.string()),
+        action: z.enum(["start", "submit"]).optional(),
+        answers: z.record(z.string(), z.string()).optional(),
       })
       .parse(await request.json());
 
-    const { data: assignment, error } = await supabase
+    const admin = createAdminSupabaseClient();
+
+    const { data: assignment, error } = await admin
       .from("assessment_assignments")
       .select(`
-        id, status, assessment_id,
-        applications ( id, candidate_id )
+        id, status, assessment_id, started_at, score, answers,
+        assessments ( id, duration_minutes ),
+        applications ( id, candidate_id, job_id, organization_id )
       `)
       .eq("id", assignmentId)
       .single();
@@ -113,60 +129,103 @@ export async function POST(
     if (error || !assignment) throw new ApiError(404, "Assignment not found");
 
     const app = Array.isArray(assignment.applications) ? assignment.applications[0] : assignment.applications;
-    if (app?.candidate_id !== profile.candidateId) {
-      throw new ApiError(403, "Access denied");
+    if (profile.portalRole === "candidate" && app?.candidate_id !== profile.candidateId) {
+      throw new ApiError(403, "Access denied to this assessment");
     }
 
-    if (assignment.status === "completed") {
-      throw new ApiError(409, "This assessment has already been submitted");
+    if (body.action === "start") {
+      const startedAt = assignment.started_at || new Date().toISOString();
+      if (!assignment.started_at) {
+        await createAdminSupabaseClient()
+          .from("assessment_assignments")
+          .update({ started_at: startedAt, status: "in_progress" })
+          .eq("id", assignmentId);
+      }
+      return NextResponse.json({
+        data: {
+          assignmentId: assignment.id,
+          status: "in_progress",
+          startedAt,
+        },
+      });
+    }
+
+    if (assignment.status === "completed" || assignment.status === "grading_pending") {
+      return NextResponse.json({
+        data: {
+          assignmentId: assignment.id,
+          status: assignment.status,
+          score: assignment.score ?? 0,
+          completedAt: new Date().toISOString(),
+        },
+      });
     }
 
     const admin = createAdminSupabaseClient();
+
+    // Server-authoritative timer deadline check
+    const assessmentObj = Array.isArray(assignment.assessments) ? assignment.assessments[0] : assignment.assessments;
+    const durationMinutes = Number(assessmentObj?.duration_minutes || 30);
+    const startedAtMs = assignment.started_at ? new Date(assignment.started_at).getTime() : Date.now();
+    const expiresAtMs = startedAtMs + durationMinutes * 60 * 1000 + 60000; // 60s Grace period for network latency
+    const isExpired = Date.now() > expiresAtMs;
+
     const { data: questions } = await admin
       .from("assessment_questions")
       .select("id, prompt, question_type, options, correct_answer, points")
       .eq("assessment_id", assignment.assessment_id);
 
-    let totalPoints = 0;
+    let totalMaxPoints = 0;
     let earnedPoints = 0;
-    const gradingDetails: Record<string, { earned: number; max: number; correct: boolean; feedback?: string }> = {};
+    let hasPendingWrittenGrading = false;
 
-    const freeTextItems: Array<{ id: string; prompt: string; answer: string; rubric: string; points: number }> = [];
+    const gradingDetails: Record<
+      string,
+      { earned: number; max: number; correct: boolean; feedback?: string; status?: "graded" | "grading_pending" }
+    > = {};
+
+    const writtenItems: Array<{ id: string; prompt: string; answer: string; rubric: string; points: number }> = [];
 
     for (const q of questions ?? []) {
-      totalPoints += q.points;
-      const candidateAns = body.answers[q.id] || "";
+      const qPoints = q.points || 10;
+      totalMaxPoints += qPoints;
+      const candidateAns = (body.answers[q.id] || "").trim();
 
-      if (q.question_type === "multiple_choice") {
-        const isCorrect = candidateAns.trim().toLowerCase() === (q.correct_answer || "").trim().toLowerCase();
-        const earned = isCorrect ? q.points : 0;
+      const normType = (q.question_type || "").toLowerCase();
+
+      if (normType === "multiple_choice") {
+        const isCorrect = candidateAns.toLowerCase() === (q.correct_answer || "").trim().toLowerCase();
+        const earned = isCorrect ? qPoints : 0;
         earnedPoints += earned;
-        gradingDetails[q.id] = { earned, max: q.points, correct: isCorrect };
+        gradingDetails[q.id] = { earned, max: qPoints, correct: isCorrect, status: "graded" };
       } else {
-        freeTextItems.push({
+        writtenItems.push({
           id: q.id,
           prompt: q.prompt,
           answer: candidateAns,
-          rubric: q.correct_answer || "Clear and thorough answer",
-          points: q.points,
+          rubric: q.correct_answer || "Clear and thorough answer relevant to position.",
+          points: qPoints,
         });
       }
     }
 
-    if (freeTextItems.length > 0) {
+    // AI-Assisted Written Answer Grading
+    if (writtenItems.length > 0) {
       try {
         const provider = await getAIProvider();
-        for (const item of freeTextItems) {
-          if (!item.answer.trim()) {
-            gradingDetails[item.id] = { earned: 0, max: item.points, correct: false, feedback: "No answer provided" };
+        for (const item of writtenItems) {
+          if (!item.answer) {
+            gradingDetails[item.id] = { earned: 0, max: item.points, correct: false, feedback: "No answer provided", status: "graded" };
             continue;
           }
+
           const evalResult = (await provider.chatJSON(
             [
               {
                 role: "system",
-                content: `You are an automated assessment grader for HireOps.
-Grade the candidate's answer against the rubric/expected answer.
+                content: `You are an automated assessment evaluator for HireOps.
+Grade the candidate's written response against the rubric.
+Do not infer age, gender, ethnicity, or protected characteristics.
 Return JSON: { scorePercent: number (0-100), feedback: string }.`,
               },
               {
@@ -184,28 +243,36 @@ Return JSON: { scorePercent: number (0-100), feedback: string }.`,
             earned,
             max: item.points,
             correct: pct >= 70,
-            feedback: evalResult.feedback || "Evaluated by AI",
+            feedback: evalResult.feedback || "Evaluated by AI against rubric.",
+            status: "graded",
           };
         }
-      } catch (err) {
-        console.error("AI grading error fallback:", err);
-        for (const item of freeTextItems) {
+      } catch (aiErr) {
+        console.warn("[POST Assessment] AI grading failed, setting grading_pending:", aiErr);
+        // CRITICAL RULE 14: On AI grading failure, mark grading_pending with 0 fallback points!
+        hasPendingWrittenGrading = true;
+        for (const item of writtenItems) {
           if (!gradingDetails[item.id]) {
-            const fallbackEarned = item.answer.trim().length > 20 ? item.points * 0.7 : 0;
-            earnedPoints += fallbackEarned;
-            gradingDetails[item.id] = { earned: fallbackEarned, max: item.points, correct: fallbackEarned > 0, feedback: "Graded via standard evaluation" };
+            gradingDetails[item.id] = {
+              earned: 0,
+              max: item.points,
+              correct: false,
+              feedback: "AI grading service unavailable. Marked pending HR manual review.",
+              status: "grading_pending",
+            };
           }
         }
       }
     }
 
-    const finalScore = totalPoints > 0 ? Math.round((earnedPoints / totalPoints) * 100 * 10) / 10 : 100;
+    const finalScore = totalMaxPoints > 0 ? Math.round((earnedPoints / totalMaxPoints) * 100 * 10) / 10 : 100;
+    const finalStatus = hasPendingWrittenGrading ? "grading_pending" : "completed";
 
     const { data: updated, error: updateErr } = await admin
       .from("assessment_assignments")
       .update({
-        status: "completed",
-        score: finalScore,
+        status: finalStatus,
+        score: hasPendingWrittenGrading ? null : finalScore,
         answers: body.answers,
         grading_details: gradingDetails,
         completed_at: new Date().toISOString(),
@@ -216,12 +283,47 @@ Return JSON: { scorePercent: number (0-100), feedback: string }.`,
 
     if (updateErr) throw updateErr;
 
+    // Requirement 16: Return application's linked interview session ID and next URL
+    let interviewSessionId: string | null = null;
+    if (app?.id && app.candidate_id) {
+      const { data: existingSession } = await admin
+        .from("interview_sessions")
+        .select("id")
+        .eq("application_id", app.id)
+        .maybeSingle();
+
+      if (existingSession) {
+        interviewSessionId = existingSession.id;
+      } else {
+        const { data: newSession } = await admin
+          .from("interview_sessions")
+          .insert({
+            organization_id: app.organization_id,
+            application_id: app.id,
+            candidate_id: app.candidate_id,
+            job_id: app.job_id,
+            status: "scheduled",
+            mode: "behavioral",
+          })
+          .select("id")
+          .single();
+        if (newSession) interviewSessionId = newSession.id;
+      }
+    }
+
+    const nextUrl = interviewSessionId
+      ? `/candidate/interviews/${interviewSessionId}`
+      : "/candidate/applications";
+
     return NextResponse.json({
       data: {
         id: updated.id,
         status: updated.status,
         score: updated.score,
         gradingDetails,
+        isExpired,
+        interviewSessionId,
+        nextUrl,
       },
     });
   } catch (error) {

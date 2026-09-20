@@ -50,9 +50,24 @@ After the first Amplify URL exists, set `NEXT_PUBLIC_APP_URL` and update Supabas
 node scripts/migrate.mjs              # apply SQL migrations
 npx tsx scripts/seed.ts               # seed org/jobs/candidates
 npx tsx scripts/seed-v2-users.ts      # seed portal demo users
-npx tsx scripts/backfill-embeddings.ts
+npm run seed:oia-jobs                 # seed production OIA job vacancies across 20 domains
+npm run verify:job-seed               # verify OIA job seed data and candidate matching
+npx tsx scripts/backfill-embeddings.ts # backfill/regenerate AI embeddings
 node scripts/generate-hireops-icons.mjs  # regenerate favicons / PWA icons from public/HireOps.png
 ```
+
+## OIA Job Vacancy Seeding
+
+### Environment Variables
+- `NEXT_PUBLIC_SUPABASE_URL` or `SUPABASE_URL`
+- `SUPABASE_SERVICE_ROLE_KEY`
+- `OPENROUTER_API_KEY` (optional, for real-time embedding generation)
+
+### Seed Execution & Idempotency
+Run `npm run seed:oia-jobs` to populate 45 realistic job vacancies for Oman Investment Authority across 20 professional departments.
+- **Idempotency:** Jobs are identified by unique reference codes (`OIA-TECH-001`, `OIA-ENG-001`, `OIA-PROC-001`, `OIA-CORP-001`). Re-running updates existing records without creating duplicates.
+- **Embeddings:** Vector embeddings are generated automatically via `embedAndStoreJob`. If AI keys are omitted, jobs are seeded cleanly and marked for later processing via `npx tsx scripts/backfill-embeddings.ts`.
+- **Verification:** Run `npm run verify:job-seed` to test job counts, department relations, skill arrays, application deadlines, candidate API visibility, and candidate matching scores.
 
 ## Branding
 

@@ -103,7 +103,10 @@ export const inviteUserSchema = z.object({
 });
 export type InviteUserInput = z.infer<typeof inviteUserSchema>;
 
-export async function inviteUser(organizationId: string, actorId: string, input: InviteUserInput) {
+export async function inviteUser(organizationId: string, actorId: string, actorRole: string, input: InviteUserInput) {
+  if (actorRole !== "super_admin") {
+    throw new ApiError(403, "Only Super Admin users can invite or create new users");
+  }
   const admin = createAdminSupabaseClient();
 
   const { data: linkData, error: linkError } = await admin.auth.admin.generateLink({
@@ -152,7 +155,20 @@ export const updateUserSchema = z.object({
 });
 export type UpdateUserInput = z.infer<typeof updateUserSchema>;
 
-export async function updateUser(organizationId: string, actorId: string, userId: string, input: UpdateUserInput) {
+export async function updateUser(
+  organizationId: string,
+  actorId: string,
+  actorRole: string,
+  userId: string,
+  input: UpdateUserInput
+) {
+  if (actorRole !== "super_admin") {
+    throw new ApiError(403, "Only Super Admin users can modify user roles and permissions");
+  }
+  if (actorId === userId && (input.portalRole !== undefined || input.roleId !== undefined || input.status !== undefined)) {
+    throw new ApiError(403, "You cannot alter your own role, permissions, or account status");
+  }
+
   const admin = createAdminSupabaseClient();
   const patch: Database["public"]["Tables"]["profiles"]["Update"] = {};
   if (input.roleId !== undefined) patch.role_id = input.roleId;

@@ -40,23 +40,30 @@ export async function parseResumeBuffer(
   mimeType: string,
   fileName: string
 ): Promise<ParseResumeResult> {
+  if (!buffer || buffer.byteLength === 0) {
+    throw new ApiError(400, "Empty document uploaded. Please select a valid PDF or DOCX file.");
+  }
   if (!isSupportedResumeMime(mimeType, fileName)) {
-    throw new ApiError(400, `Unsupported file format (${fileName}). Upload PDF, DOCX, or TXT.`);
+    throw new ApiError(400, `Unsupported file format (${fileName}). Upload a valid PDF or DOCX file up to 10MB.`);
   }
   if (buffer.byteLength > 10 * 1024 * 1024) {
-    throw new ApiError(400, "File exceeds 10MB limit.");
+    throw new ApiError(400, "File exceeds 10MB limit. Upload a smaller PDF or DOCX.");
   }
 
   let resumeText = "";
   try {
     resumeText = await extractResumeText(buffer, mimeType, fileName);
   } catch (extractErr) {
-    console.warn("[parseResumeBuffer] extractResumeText warning, using text fallback:", extractErr);
-    resumeText = buffer.toString("utf-8").replace(/[^\x09\x0A\x0D\x20-\x7E\u0600-\u06FF]/g, " ");
+    if (extractErr instanceof ApiError) throw extractErr;
+    throw new ApiError(400, `Could not read document contents (${fileName}). Ensure the file is not password-protected or corrupted.`);
   }
 
-  if (!resumeText || resumeText.length < 5) {
-    resumeText = `Resume File: ${fileName}\nContent: Binary document uploaded.`;
+  const cleanAlphanumeric = resumeText.replace(/[^a-zA-Z0-9\u0600-\u06FF]/g, "");
+  if (!resumeText || cleanAlphanumeric.length < 20) {
+    throw new ApiError(
+      400,
+      "No readable text found in document. If this is a scanned image or scanned PDF, please upload a text-based PDF or DOCX file."
+    );
   }
 
   let raw: unknown = null;
@@ -67,13 +74,14 @@ export async function parseResumeBuffer(
         { role: "system", content: PARSE_SYSTEM_PROMPT },
         {
           role: "user",
-          content: `Parse this resume into the required JSON schema:\n\n---\n${resumeText.slice(0, 14000)}\n---`,
+          content: `Extract candidate profile data into JSON from untrusted document input:\n\n<DOCUMENT>\n${resumeText.slice(0, 14000)}\n</DOCUMENT>`,
         },
       ],
       { temperature: 0.1, maxTokens: 2500 }
     );
   } catch (aiErr) {
-    console.warn("[parseResumeBuffer] AI Provider parse warning, building heuristic profile:", aiErr);
+    console.error("[parseResumeBuffer] AI provider parse error:", aiErr);
+    throw new ApiError(500, "AI parsing service encountered an error. Please try again or fill in profile fields manually.");
   }
 
   let parsed: ParsedResume;
@@ -84,6 +92,7 @@ export async function parseResumeBuffer(
     parsed = {
       fullName: fileName.replace(/\.[^/.]+$/, "").replace(/[_-]/g, " "),
       headline: "Candidate Profile",
+      summary: null,
       email: null,
       phone: null,
       location: null,

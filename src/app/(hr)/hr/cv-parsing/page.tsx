@@ -577,6 +577,17 @@ export default function CvParsingPage() {
               <Button variant="outline" className="bg-white/5 border-white/10" onClick={reset} disabled={createMutation.isPending}>
                 Discard
               </Button>
+              <Button
+                variant="outline"
+                className="bg-white/5 border-white/10 text-xs gap-1.5 cursor-pointer"
+                onClick={() => {
+                  const link = `${window.location.origin}/candidate-signup?email=${encodeURIComponent(email)}&name=${encodeURIComponent(name)}`;
+                  navigator.clipboard.writeText(link);
+                  toast.success("Candidate invitation link copied to clipboard");
+                }}
+              >
+                Copy Invite Link
+              </Button>
               <Button className="gradient-brand text-white gap-2" onClick={() => void handleSubmit()} disabled={createMutation.isPending}>
                 {createMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
                 Review &amp; Submit to Pipeline

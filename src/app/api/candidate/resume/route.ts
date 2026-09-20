@@ -1,7 +1,10 @@
 import { NextResponse } from "next/server";
 import { requireProfile, jsonError, ApiError } from "@/lib/api/helpers";
 import { requireCandidateId } from "@/lib/services/candidate-portal.service";
+import { parseResumeBuffer } from "@/lib/services/resume-parse.service";
 import { isSupportedResumeMime } from "@/lib/ai/extract-text";
+
+export const maxDuration = 60;
 
 export async function POST(request: Request) {
   try {
@@ -9,42 +12,55 @@ export async function POST(request: Request) {
     const { candidateId, organizationId } = await requireCandidateId(profile);
     const form = await request.formData();
     const file = form.get("file");
-    if (!(file instanceof File)) throw new ApiError(400, "file required");
-    if (!isSupportedResumeMime(file.type, file.name) || !file.size || file.size > 10 * 1024 * 1024) {
-      throw new ApiError(400, "Upload a non-empty PDF or DOCX up to 10 MB.");
+
+    if (!(file instanceof File)) throw new ApiError(400, "Missing upload parameter 'file'.");
+    if (!file.size) throw new ApiError(400, "Empty document uploaded. Select a valid PDF or DOCX file.");
+    if (file.size > 10 * 1024 * 1024) throw new ApiError(400, "File exceeds 10MB limit. Upload a smaller PDF or DOCX.");
+
+    const mimeType = file.type || "application/octet-stream";
+    const fileName = file.name || "resume.pdf";
+    if (!isSupportedResumeMime(mimeType, fileName)) {
+      throw new ApiError(400, `Unsupported file format (${fileName}). Upload a valid PDF or DOCX file.`);
     }
 
-    const ext = file.name.split(".").pop() || "pdf";
-    const path = `${organizationId}/${candidateId}/${crypto.randomUUID()}.${ext}`;
     const buffer = Buffer.from(await file.arrayBuffer());
-    const { error: upErr } = await supabase.storage.from("resumes").upload(path, buffer, {
-      contentType: file.type || "application/pdf",
-      upsert: false,
+    const parseResult = await parseResumeBuffer(buffer, mimeType, fileName);
+
+    const ext = fileName.split(".").pop() || "pdf";
+    const privatePath = `${organizationId}/${candidateId}/draft_${crypto.randomUUID()}.${ext}`;
+
+    const { error: upErr } = await supabase.storage.from("resumes").upload(privatePath, buffer, {
+      contentType: mimeType,
+      upsert: true,
     });
-    if (upErr) throw upErr;
+    if (upErr) {
+      console.warn("[Candidate Resume API] Storage upload warning:", upErr.message);
+    }
 
-    const { data, error } = await supabase
-      .from("candidates")
-      .update({
-        resume_file_path: path,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", candidateId)
-      .select("id, resume_file_path, full_name")
-      .single();
-    if (error) throw error;
+    try {
+      await supabase.from("candidate_documents").insert({
+        organization_id: organizationId,
+        candidate_id: candidateId,
+        label: `Draft Resume (${fileName})`,
+        file_path: privatePath,
+        mime_type: mimeType,
+        size_bytes: file.size,
+        uploaded_by: user.id,
+      });
+    } catch {
+      // document record insert is optional
+    }
 
-    await supabase.from("candidate_documents").insert({
-      organization_id: organizationId,
-      candidate_id: candidateId,
-      label: "Resume",
-      file_path: path,
-      mime_type: file.type || "application/pdf",
-      size_bytes: file.size,
-      uploaded_by: user.id,
+    return NextResponse.json({
+      data: {
+        parsed: parseResult.parsed,
+        confidence: parseResult.confidence,
+        warnings: parseResult.warnings,
+        resumeText: parseResult.resumeText,
+        resumeFilePath: privatePath,
+        fileName,
+      },
     });
-
-    return NextResponse.json({ data });
   } catch (err) {
     return jsonError(err);
   }

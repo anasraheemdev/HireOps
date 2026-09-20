@@ -87,27 +87,72 @@ export async function applyToJob(
   jobId: string,
   userId: string
 ) {
-  const {data:job}=await supabase.from('jobs').select('id,status').eq('id',jobId).single();
-  if(!job || job.status!=='open') throw new ApiError(400,'This job is not accepting applications');
-  const { data: existing } = await supabase
+  const admin = createAdminSupabaseClient();
+  const { data: cand } = await admin
+    .from("candidates")
+    .select("id, organization_id")
+    .eq("id", candidateId)
+    .single();
+
+  if (!cand) throw new ApiError(404, "Candidate profile not found");
+
+  const { data: job } = await admin
+    .from("jobs")
+    .select("id, organization_id, status")
+    .eq("id", jobId)
+    .maybeSingle();
+
+  if (!job || job.organization_id !== cand.organization_id) {
+    throw new ApiError(403, "Job not found or access denied for this organization");
+  }
+
+  if (job.status !== "open") {
+    throw new ApiError(400, "This job is not accepting applications");
+  }
+
+  const { data: existing } = await admin
     .from("applications")
     .select("id, stage")
     .eq("candidate_id", candidateId)
     .eq("job_id", jobId)
     .maybeSingle();
+
   if (existing) return { ...existing, alreadyApplied: true as const };
 
-  const { data, error } = await supabase
+  let matchScore: number | null = null;
+  try {
+    const { getCandidateJobRecommendations } = await import("@/lib/services/job-matching.service");
+    const recs = await getCandidateJobRecommendations(admin, candidateId, 0);
+    const rec = [...recs.recommendations, ...recs.appliedJobs].find((r) => r.id === jobId);
+    if (rec) matchScore = rec.relevanceScore;
+  } catch (scoreErr) {
+    console.warn("[applyToJob] Scoring warning:", scoreErr);
+  }
+
+  const { data, error } = await admin
     .from("applications")
     .insert({
       candidate_id: candidateId,
       job_id: jobId,
       stage: "applied",
       created_by: userId,
+      match_score: matchScore,
     })
     .select("id, stage")
     .single();
-  if (error) throw error;
+
+  if (error) {
+    if (error.code === "23505") {
+      const { data: retryExisting } = await admin
+        .from("applications")
+        .select("id, stage")
+        .eq("candidate_id", candidateId)
+        .eq("job_id", jobId)
+        .single();
+      return { ...retryExisting, alreadyApplied: true as const };
+    }
+    throw error;
+  }
   return { ...data, alreadyApplied: false as const };
 }
 
@@ -239,21 +284,254 @@ export async function unsaveJob(supabase: Client, candidateId: string, jobId: st
 export async function getMeProfile(supabase: Client, userId: string, candidateId: string | null) {
   const { data: profile, error } = await supabase
     .from("profiles")
-    .select("id, email, full_name, phone, avatar_url, portal_role, candidate_id, organization_id")
+    .select("id, email, full_name, phone, avatar_url, portal_role, candidate_id, organization_id, status")
     .eq("id", userId)
     .single();
   if (error) throw error;
 
   let candidate = null;
-  if (candidateId) {
-    const { data } = await supabase
+  const effectiveCandidateId = candidateId || profile?.candidate_id;
+  if (effectiveCandidateId) {
+    const fullSelect = "id, full_name, email, phone, location, nationality, headline, summary, is_confirmed, experience_years, resume_url, resume_file_path, resume_text";
+    const baseSelect = "id, full_name, email, phone, location, nationality, headline, experience_years, resume_url, resume_file_path, resume_text";
+
+    const { data: initialData, error: candErr } = await supabase
       .from("candidates")
-      .select("id, full_name, email, phone, location, nationality, headline, experience_years, resume_url, resume_file_path")
-      .eq("id", candidateId)
+      .select(fullSelect)
+      .eq("id", effectiveCandidateId)
       .maybeSingle();
-    candidate = data;
+    let data = initialData;
+
+    if (candErr && (candErr.code === "PGRST204" || candErr.message?.includes("column"))) {
+      const { data: fallbackData } = await supabase
+        .from("candidates")
+        .select(baseSelect)
+        .eq("id", effectiveCandidateId)
+        .maybeSingle();
+      data = fallbackData ? ({ ...fallbackData, summary: null, is_confirmed: true } as unknown as typeof initialData) : null;
+    }
+
+    if (!data) {
+      const admin = createAdminSupabaseClient();
+      const { data: initialAdminCand, error: adminErr } = await admin
+        .from("candidates")
+        .select(fullSelect)
+        .eq("id", effectiveCandidateId)
+        .maybeSingle();
+      let adminCand = initialAdminCand;
+
+      if (adminErr && (adminErr.code === "PGRST204" || adminErr.message?.includes("column"))) {
+        const { data: fallbackAdmin } = await admin
+          .from("candidates")
+          .select(baseSelect)
+          .eq("id", effectiveCandidateId)
+          .maybeSingle();
+        adminCand = fallbackAdmin ? ({ ...fallbackAdmin, summary: null, is_confirmed: true } as unknown as typeof initialAdminCand) : null;
+      }
+      candidate = adminCand;
+    } else {
+      candidate = data;
+    }
   }
   return { profile, candidate };
+}
+
+export type ConfirmCandidateProfileInput = {
+  fullName: string;
+  email?: string;
+  phone?: string | null;
+  location?: string | null;
+  nationality?: string | null;
+  headline?: string | null;
+  summary?: string | null;
+  experienceYears?: number;
+  skills?: string[];
+  languages?: { name: string; level: "native" | "fluent" | "professional" | "conversational" | "basic" }[];
+  certifications?: { name: string; issuer?: string | null; year?: string | null }[];
+  experience?: { role: string; company: string; location?: string | null; period?: string | null; description?: string | null }[];
+  education?: { degree: string; institution: string; period?: string | null; grade?: string | null }[];
+  resumeFilePath?: string | null;
+  resumeText?: string | null;
+};
+
+export async function confirmCandidateProfile(
+  supabase: Client,
+  userId: string,
+  candidateId: string,
+  input: ConfirmCandidateProfileInput
+) {
+  const admin = createAdminSupabaseClient();
+
+  // 1. Validate security boundary: Candidate profile must match user's linked candidate_id
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("id, candidate_id, organization_id")
+    .eq("id", userId)
+    .single();
+
+  if (!profile || profile.candidate_id !== candidateId) {
+    throw new ApiError(403, "You are not authorized to update this candidate profile.");
+  }
+
+  // 2. Fetch existing candidate to avoid overwriting verified data with empty fields
+  const { data: existingCandidate } = await admin
+    .from("candidates")
+    .select("*")
+    .eq("id", candidateId)
+    .single();
+
+  if (!existingCandidate) throw new ApiError(404, "Candidate profile not found.");
+
+  const fullName = input.fullName?.trim() || existingCandidate.full_name;
+  const phone = input.phone !== undefined ? input.phone : existingCandidate.phone;
+  const location = input.location !== undefined ? input.location : existingCandidate.location;
+  const nationality = input.nationality !== undefined ? input.nationality : existingCandidate.nationality;
+  const headline = input.headline !== undefined ? input.headline : existingCandidate.headline;
+  const summary = input.summary !== undefined ? input.summary : existingCandidate.summary;
+  const experienceYears = input.experienceYears !== undefined ? input.experienceYears : Number(existingCandidate.experience_years);
+  const resumeFilePath = input.resumeFilePath || existingCandidate.resume_file_path;
+  const resumeText = input.resumeText || existingCandidate.resume_text;
+
+  // 3. Update candidate core record & set is_confirmed = true
+  const { error: candErr } = await admin
+    .from("candidates")
+    .update({
+      full_name: fullName,
+      phone,
+      location,
+      nationality,
+      headline,
+      summary,
+      experience_years: experienceYears,
+      resume_file_path: resumeFilePath,
+      resume_text: resumeText,
+      is_confirmed: true,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", candidateId);
+
+  if (candErr && candErr.code === "PGRST204") {
+    const { error: fallbackErr } = await admin
+      .from("candidates")
+      .update({
+        full_name: fullName,
+        phone,
+        location,
+        nationality,
+        headline,
+        experience_years: experienceYears,
+        resume_file_path: resumeFilePath,
+        resume_text: resumeText,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", candidateId);
+    if (fallbackErr) throw fallbackErr;
+  } else if (candErr) {
+    throw candErr;
+  }
+
+  // 4. Update profile record
+  await admin
+    .from("profiles")
+    .update({
+      full_name: fullName,
+      phone,
+      status: "active",
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", userId);
+
+  // 5. Idempotent child table updates
+  if (Array.isArray(input.skills)) {
+    const cleanSkills = [...new Set(input.skills.map((s) => s.trim()).filter(Boolean))];
+    await admin.from("candidate_skills").delete().eq("candidate_id", candidateId);
+    if (cleanSkills.length > 0) {
+      await admin
+        .from("candidate_skills")
+        .insert(cleanSkills.map((skill) => ({ candidate_id: candidateId, skill })));
+    }
+  }
+
+  if (Array.isArray(input.languages)) {
+    await admin.from("candidate_languages").delete().eq("candidate_id", candidateId);
+    if (input.languages.length > 0) {
+      await admin.from("candidate_languages").insert(
+        input.languages.map((l) => ({
+          candidate_id: candidateId,
+          name: l.name,
+          level: l.level,
+        }))
+      );
+    }
+  }
+
+  if (Array.isArray(input.certifications)) {
+    await admin.from("candidate_certifications").delete().eq("candidate_id", candidateId);
+    if (input.certifications.length > 0) {
+      await admin.from("candidate_certifications").insert(
+        input.certifications.map((c) => ({
+          candidate_id: candidateId,
+          name: c.name,
+          issuer: c.issuer || null,
+          year: c.year || null,
+        }))
+      );
+    }
+  }
+
+  if (Array.isArray(input.experience)) {
+    await admin.from("candidate_experience").delete().eq("candidate_id", candidateId);
+    if (input.experience.length > 0) {
+      await admin.from("candidate_experience").insert(
+        input.experience.map((e, idx) => ({
+          candidate_id: candidateId,
+          role: e.role,
+          company: e.company,
+          location: e.location || null,
+          description: e.description || null,
+          sort_order: idx,
+        }))
+      );
+    }
+  }
+
+  if (Array.isArray(input.education)) {
+    await admin.from("candidate_education").delete().eq("candidate_id", candidateId);
+    if (input.education.length > 0) {
+      await admin.from("candidate_education").insert(
+        input.education.map((ed, idx) => ({
+          candidate_id: candidateId,
+          degree: ed.degree,
+          institution: ed.institution,
+          grade: ed.grade || null,
+          sort_order: idx,
+        }))
+      );
+    }
+  }
+
+  // 6. Recompute candidate embedding after confirmation
+  try {
+    const { embedAndStoreCandidate, buildCandidateEmbeddingText } = await import(
+      "@/lib/services/embeddings.service"
+    );
+    const text = buildCandidateEmbeddingText({
+      fullName,
+      headline,
+      location,
+      experienceYears,
+      skills: input.skills ?? [],
+      experience: input.experience ?? [],
+      education: input.education ?? [],
+      certifications: input.certifications ?? [],
+      resumeText,
+    });
+    await embedAndStoreCandidate(admin, candidateId, text);
+  } catch (embedErr) {
+    console.warn("[confirmCandidateProfile] Embedding recomputation warning:", embedErr);
+  }
+
+  return getMeProfile(admin, userId, candidateId);
 }
 
 export async function updateMe(
